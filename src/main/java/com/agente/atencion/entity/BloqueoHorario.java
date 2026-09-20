@@ -6,20 +6,17 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "turnos")
+@Table(name = "bloqueos_horario")
 @Data
-public class Turno {
+public class BloqueoHorario {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
-    private String tenantId;
-    private String paciente;
-    private String telefono;
-    private String servicio;
     private Long barberoId;
+    private String tenantId;
     private LocalDate fecha;
-    private String hora;
+    private String horaInicio;
     private String horaFin;
-    private String estado = "RESERVADO";
+    private String motivo;
     private LocalDateTime creadoEn = LocalDateTime.now();
 }

@@ -41,11 +41,16 @@ public class AgenteService {
                 .build()
         );
 
-        return client.prompt()
-            .user(mensaje)
-            .tools(negocioTools, inmobiliariaTools)
-            .advisors(a -> a.param(ChatMemory.CONVERSATION_ID, tenantId + "-" + sessionId))
-            .call()
-            .content();
+        TenantContext.set(tenantId);
+        try {
+            return client.prompt()
+                .user(mensaje)
+                .tools(negocioTools, inmobiliariaTools)
+                .advisors(a -> a.param(ChatMemory.CONVERSATION_ID, tenantId + "-" + sessionId))
+                .call()
+                .content();
+        } finally {
+            TenantContext.clear();
+        }
     }
 }

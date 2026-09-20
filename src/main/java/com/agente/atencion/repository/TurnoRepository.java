@@ -8,4 +8,5 @@ import java.util.List;
 public interface TurnoRepository extends JpaRepository<Turno, Long> {
     List<Turno> findByTenantIdAndFecha(String tenantId, LocalDate fecha);
     List<Turno> findByTenantIdOrderByFechaAscHoraAsc(String tenantId);
+    List<Turno> findByBarberoIdAndFecha(Long barberoId, LocalDate fecha);
 }

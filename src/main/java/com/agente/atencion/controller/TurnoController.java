@@ -2,7 +2,9 @@ package com.agente.atencion.controller;
 
 import com.agente.atencion.entity.Turno;
 import com.agente.atencion.repository.TurnoRepository;
+import com.agente.atencion.service.DisponibilidadService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import java.time.LocalDate;
@@ -15,6 +17,7 @@ import java.util.Map;
 public class TurnoController {
 
     @Autowired private TurnoRepository turnoRepository;
+    @Autowired private DisponibilidadService disponibilidadService;
 
     @GetMapping("/{tenantId}")
     public List<Turno> listar(@PathVariable String tenantId,
@@ -26,9 +29,20 @@ public class TurnoController {
     }
 
     @PostMapping("/{tenantId}")
-    public Turno crear(@PathVariable String tenantId, @RequestBody Turno turno) {
+    public ResponseEntity<?> crear(@PathVariable String tenantId, @RequestBody Turno turno) {
         turno.setTenantId(tenantId);
-        return turnoRepository.save(turno);
+        // Calcular horaFin si tenemos barberoId y servicio
+        if (turno.getBarberoId() != null && turno.getServicio() != null && turno.getHora() != null) {
+            int duracion = disponibilidadService.obtenerDuracion(tenantId, turno.getServicio());
+            String horaFin = disponibilidadService.calcularHoraFin(turno.getHora(), duracion);
+            turno.setHoraFin(horaFin);
+            // Validar que el slot sigue disponible (protección contra doble booking)
+            if (!disponibilidadService.validar(turno.getBarberoId(), turno.getFecha(), turno.getHora(), horaFin)) {
+                return ResponseEntity.status(HttpStatus.CONFLICT)
+                    .body(Map.of("error", "El horario ya no está disponible. Por favor elegí otro."));
+            }
+        }
+        return ResponseEntity.ok(turnoRepository.save(turno));
     }
 
     @PutMapping("/{tenantId}/{id}/estado")

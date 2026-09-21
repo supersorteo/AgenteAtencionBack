@@ -19,7 +19,8 @@ public class ChatController {
             String respuesta = agenteService.chat(request.tenantId(), request.sessionId(), request.mensaje());
             return ResponseEntity.ok(new ChatResponse(respuesta));
         } catch (Exception e) {
-            return ResponseEntity.ok(new ChatResponse("Lo siento, ocurrió un error. Por favor intentá de nuevo."));
+            String msg = e.getMessage() != null ? e.getMessage() : e.getClass().getName();
+            return ResponseEntity.ok(new ChatResponse("ERROR: " + msg));
         }
     }
 }

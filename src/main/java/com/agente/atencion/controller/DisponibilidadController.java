@@ -8,7 +8,6 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/v1/disponibilidad")
-@CrossOrigin(origins = "*")
 public class DisponibilidadController {
 
     @Autowired private DisponibilidadService disponibilidadService;

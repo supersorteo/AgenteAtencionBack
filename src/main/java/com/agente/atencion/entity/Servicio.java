@@ -17,5 +17,9 @@ public class Servicio {
     private Double precio;
     private Integer duracionMinutos;
     private String emoji = "✂️";
+    private String categoria;
+    private String imagenUrl;
+    private String imagenUrl2;
+    private String imagenUrl3;
     private Boolean activo = true;
 }

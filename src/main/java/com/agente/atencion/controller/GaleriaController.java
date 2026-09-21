@@ -9,7 +9,6 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/v1/galeria")
-@CrossOrigin(origins = "*")
 public class GaleriaController {
 
     @Autowired private GaleriaRepository galeriaRepository;

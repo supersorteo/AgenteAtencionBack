@@ -76,14 +76,17 @@ INSTRUCCIONES:
     true
 ) ON CONFLICT (id) DO UPDATE SET contexto = EXCLUDED.contexto;
 
-INSERT INTO servicios (tenant_id, nombre, descripcion, precio, duracion_minutos, emoji, activo)
+INSERT INTO servicios (tenant_id, nombre, descripcion, precio, duracion_minutos, emoji, categoria, imagen_url, activo)
 SELECT * FROM (VALUES
-    ('barberia-demo', 'Corte de cabello', 'Corte personalizado con tijera o máquina, lavado incluido', 450.0, 30, '✂️', true),
-    ('barberia-demo', 'Corte + barba',    'Corte de cabello más perfilado y arreglo de barba', 650.0, 45, '🪒', true),
-    ('barberia-demo', 'Afeitado clásico', 'Afeitado tradicional con navaja, toalla caliente y aftershave', 350.0, 30, '🔥', true),
-    ('barberia-demo', 'Corte niños',      'Corte para menores de 12 años, ambiente amigable', 350.0, 25, '👦', true),
-    ('barberia-demo', 'Tratamiento capilar', 'Hidratación profunda, masaje capilar y nutrición del cabello', 800.0, 60, '💆', true)
-) AS v(tenant_id, nombre, descripcion, precio, duracion_minutos, emoji, activo)
+    ('barberia-demo', 'Corte clásico',    'Corte tradicional con tijera, prolijo y personalizado', 400.0, 30, '✂️', 'Cortes', 'https://images.unsplash.com/photo-1503951914875-452162b0f3f1?w=600', true),
+    ('barberia-demo', 'Fade degradado',   'Degradado moderno con máquina, efecto fade perfecto', 450.0, 35, '✂️', 'Cortes', 'https://images.unsplash.com/photo-1599351431202-1e0f0137899a?w=600', true),
+    ('barberia-demo', 'Texturizado',      'Corte con textura y volumen, estilo urbano contemporáneo', 480.0, 35, '✂️', 'Cortes', 'https://images.unsplash.com/photo-1567894340315-735d7c361db0?w=600', true),
+    ('barberia-demo', 'Corte niños',      'Corte para menores de 12 años, ambiente amigable y paciente', 350.0, 25, '👦', 'Cortes', 'https://images.unsplash.com/photo-1607453998774-d533f65dac99?w=600', true),
+    ('barberia-demo', 'Corte + barba',    'Corte de cabello más perfilado y arreglo completo de barba', 650.0, 45, '🪒', 'Barba', 'https://images.unsplash.com/photo-1621605815971-fbc98d665033?w=600', true),
+    ('barberia-demo', 'Arreglo de barba', 'Perfilado, delineado y definición de barba con navaja', 300.0, 20, '🪒', 'Barba', 'https://images.unsplash.com/photo-1534297635766-a262cdcb8ee4?w=600', true),
+    ('barberia-demo', 'Afeitado clásico', 'Afeitado tradicional con navaja, toalla caliente y aftershave premium', 350.0, 30, '🔥', 'Barba', 'https://images.unsplash.com/photo-1605497788044-5a32c7078486?w=600', true),
+    ('barberia-demo', 'Tratamiento capilar', 'Hidratación profunda, masaje capilar y nutrición del cabello', 800.0, 60, '💆', 'Cuidado', 'https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?w=600', true)
+) AS v(tenant_id, nombre, descripcion, precio, duracion_minutos, emoji, categoria, imagen_url, activo)
 WHERE NOT EXISTS (SELECT 1 FROM servicios WHERE tenant_id = 'barberia-demo');
 
 -- Barbero demo para barberia-demo
@@ -107,6 +110,7 @@ SELECT * FROM (VALUES
     ('barberia-demo', 'Corte texturizado', 'Corte moderno con textura y volumen', 'https://images.unsplash.com/photo-1599351431202-1e0f0137899a?w=600', 'cortes', true)
 ) AS v(tenant_id, titulo, descripcion, imagen_url, categoria, activo)
 WHERE NOT EXISTS (SELECT 1 FROM galeria WHERE tenant_id = 'barberia-demo');
+
 
 INSERT INTO servicios (tenant_id, nombre, descripcion, precio, duracion_minutos, emoji, activo)
 SELECT * FROM (VALUES

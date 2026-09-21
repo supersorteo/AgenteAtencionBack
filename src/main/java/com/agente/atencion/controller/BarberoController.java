@@ -4,15 +4,17 @@ import com.agente.atencion.entity.Barbero;
 import com.agente.atencion.entity.HorarioBarbero;
 import com.agente.atencion.repository.BarberoRepository;
 import com.agente.atencion.repository.HorarioBarberoRepository;
+import com.agente.atencion.security.UsuarioAutenticado;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 @RestController
 @RequestMapping("/api/v1/barberos")
-@CrossOrigin(origins = "*")
 public class BarberoController {
 
     @Autowired private BarberoRepository barberoRepository;
@@ -53,6 +55,25 @@ public class BarberoController {
                 b.setActivo(false);
                 barberoRepository.save(b);
                 return ResponseEntity.ok().<Void>build();
+            })
+            .orElse(ResponseEntity.notFound().build());
+    }
+
+    // Barbero actualiza su propio perfil (solo foto y especialidad)
+    @PatchMapping("/{tenantId}/mi-perfil")
+    public ResponseEntity<Barbero> actualizarMiPerfil(@PathVariable String tenantId,
+                                                       @RequestBody Barbero datos,
+                                                       Authentication auth) {
+        if (!(auth.getPrincipal() instanceof UsuarioAutenticado u) || u.barberoId() == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+        if (!tenantId.equals(u.tenantId())) return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        return barberoRepository.findById(u.barberoId())
+            .filter(b -> b.getTenantId().equals(tenantId))
+            .map(b -> {
+                if (datos.getEspecialidad() != null) b.setEspecialidad(datos.getEspecialidad());
+                if (datos.getFoto() != null) b.setFoto(datos.getFoto());
+                return ResponseEntity.ok(barberoRepository.save(b));
             })
             .orElse(ResponseEntity.notFound().build());
     }

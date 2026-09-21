@@ -35,6 +35,7 @@ public class SecurityConfig {
                 // Siempre públicos
                 .requestMatchers("/api/auth/**").permitAll()
                 .requestMatchers("/api/v1/chat/**").permitAll()
+                .requestMatchers("/api/v1/diag").permitAll()
                 // Landing: GET de catálogo y disponibilidad sin auth
                 .requestMatchers(HttpMethod.GET,
                     "/api/v1/servicios/**",

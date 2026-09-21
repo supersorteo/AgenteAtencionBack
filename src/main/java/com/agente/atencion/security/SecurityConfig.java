@@ -60,10 +60,17 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsSource() {
         CorsConfiguration cfg = new CorsConfiguration();
-        // Orígenes explícitos; en prod setear ALLOWED_ORIGINS=https://tudominio.com
-        String origins = System.getenv().getOrDefault("ALLOWED_ORIGINS", "http://localhost:4200,http://localhost:3000");
-        cfg.setAllowedOrigins(List.of(origins.split(",")));
-        cfg.setAllowedMethods(List.of("GET","POST","PUT","DELETE","OPTIONS"));
+        String extra = System.getenv().getOrDefault("ALLOWED_ORIGINS", "");
+        List<String> patterns = new java.util.ArrayList<>(List.of(
+            "http://localhost:4200",
+            "http://localhost:3000",
+            "https://*.vercel.app"
+        ));
+        if (!extra.isBlank()) {
+            for (String o : extra.split(",")) { patterns.add(o.trim()); }
+        }
+        cfg.setAllowedOriginPatterns(patterns);
+        cfg.setAllowedMethods(List.of("GET","POST","PUT","DELETE","PATCH","OPTIONS"));
         cfg.setAllowedHeaders(List.of("Authorization","Content-Type","Accept"));
         // No seteamos allowCredentials porque usamos JWT en header, no cookies
         var source = new UrlBasedCorsConfigurationSource();

@@ -100,16 +100,16 @@ public class UsuarioAdminController {
     }
 
     @DeleteMapping("/{tenantId}/usuarios/{id}")
-    public ResponseEntity<Void> eliminar(@PathVariable String tenantId,
-                                          @PathVariable Long id,
-                                          Authentication auth) {
+    public ResponseEntity<?> eliminar(@PathVariable String tenantId,
+                                       @PathVariable Long id,
+                                       Authentication auth) {
         if (!esAdmin(auth, tenantId)) return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         return usuarioRepo.findById(id)
             .filter(u -> u.getTenantId().equals(tenantId) && "BARBERO".equals(u.getRol()))
             .map(u -> {
                 u.setActivo(false);
                 usuarioRepo.save(u);
-                return ResponseEntity.<Void>ok().build();
+                return ResponseEntity.ok().build();
             })
             .orElse(ResponseEntity.notFound().build());
     }

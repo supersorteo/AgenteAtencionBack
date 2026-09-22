@@ -13,6 +13,10 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.LocalDate;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneId;
+import org.springframework.test.util.ReflectionTestUtils;
 import java.util.List;
 import java.util.Optional;
 
@@ -40,6 +44,8 @@ class DisponibilidadServiceTest {
 
     @BeforeEach
     void setUp() {
+        ReflectionTestUtils.setField(sut, "negocioClock", Clock.fixed(
+            Instant.parse("2026-09-21T12:00:00Z"), ZoneId.of("America/Montevideo")));
         barberoJuan = new Barbero();
         barberoJuan.setId(1L);
         barberoJuan.setTenantId(TENANT);

@@ -13,7 +13,7 @@ public interface BloqueoHorarioRepository extends JpaRepository<BloqueoHorario, 
     List<BloqueoHorario> findByBarberoIdAndFecha(Long barberoId, LocalDate fecha);
 
     @Query("SELECT b FROM BloqueoHorario b WHERE b.barberoId = :barberoId AND b.fecha = :fecha " +
-           "AND b.horaInicio <= :horaFin AND b.horaFin > :horaInicio")
+           "AND b.horaInicio < :horaFin AND b.horaFin > :horaInicio")
     List<BloqueoHorario> findConflictos(@Param("barberoId") Long barberoId,
                                         @Param("fecha") LocalDate fecha,
                                         @Param("horaInicio") String horaInicio,

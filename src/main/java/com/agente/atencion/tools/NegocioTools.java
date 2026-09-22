@@ -2,17 +2,18 @@ package com.agente.atencion.tools;
 
 import com.agente.atencion.entity.Barbero;
 import com.agente.atencion.entity.Servicio;
-import com.agente.atencion.entity.Turno;
 import com.agente.atencion.repository.BarberoRepository;
 import com.agente.atencion.repository.ServicioRepository;
-import com.agente.atencion.repository.TurnoRepository;
 import com.agente.atencion.service.DisponibilidadService;
 import com.agente.atencion.service.TenantContext;
+import com.agente.atencion.service.ReservaAgenteService;
 import org.springframework.ai.tool.annotation.Tool;
+import org.springframework.ai.tool.annotation.ToolParam;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDate;
+import java.time.Clock;
 import java.time.format.TextStyle;
 import java.util.List;
 import java.util.Locale;
@@ -20,15 +21,16 @@ import java.util.Locale;
 @Component
 public class NegocioTools {
 
-    @Autowired private TurnoRepository turnoRepository;
+    @Autowired private ReservaAgenteService reservas;
+    @Autowired private Clock negocioClock;
     @Autowired private ServicioRepository servicioRepository;
     @Autowired private BarberoRepository barberoRepository;
     @Autowired private DisponibilidadService disponibilidadService;
 
     @Tool(description = "Retorna la fecha actual y los próximos 7 días con su nombre de día. Usá esta herramienta cuando el cliente diga 'mañana', 'pasado mañana', 'el lunes', 'esta semana' u otra referencia relativa a la fecha.")
     public String obtenerFechaActual() {
-        LocalDate hoy = LocalDate.now();
-        Locale es = new Locale("es", "UY");
+        LocalDate hoy = LocalDate.now(negocioClock);
+        Locale es = Locale.forLanguageTag("es-UY");
         StringBuilder sb = new StringBuilder();
         sb.append("HOY es ").append(hoy.getDayOfWeek().getDisplayName(TextStyle.FULL, es))
           .append(" ").append(hoy).append("\n");
@@ -73,83 +75,48 @@ public class NegocioTools {
     }
 
     @Tool(description = "Consulta los horarios disponibles para una fecha (YYYY-MM-DD) y un servicio especifico. Opcionalmente puede especificarse el nombre del barbero.")
-    public String consultarDisponibilidad(String fecha, String servicio, String nombreBarbero) {
-        LocalDate fechaLocal = LocalDate.parse(fecha);
-        if (fechaLocal.isBefore(LocalDate.now()))
-            return "No es posible reservar en fechas pasadas. Por favor elegí una fecha a partir de hoy (" + LocalDate.now() + ").";
-        String tenantId = TenantContext.get();
-        Long barberoId = null;
-        if (nombreBarbero != null && !nombreBarbero.isBlank()) {
-            barberoId = barberoRepository.findByTenantIdAndActivoTrue(tenantId).stream()
-                .filter(b -> b.getNombre().equalsIgnoreCase(nombreBarbero))
-                .map(Barbero::getId)
-                .findFirst()
-                .orElse(null);
+    public String consultarDisponibilidad(String fecha, String servicio,
+            @ToolParam(required = false, description = "Nombre del barbero elegido; omitilo para consultar todos, sin asignar automáticamente") String nombreBarbero) {
+        try {
+            LocalDate fechaLocal = reservas.resolverFecha(fecha);
+            String tenantId = TenantContext.get();
+            Servicio elegido = reservas.resolverServicio(tenantId, servicio);
+            Long barberoId = null;
+            if (nombreBarbero != null && !nombreBarbero.isBlank()) {
+                barberoId = reservas.resolverBarbero(tenantId, nombreBarbero).getId();
+            }
+            List<DisponibilidadService.SlotDisponible> slots =
+                disponibilidadService.calcular(tenantId, fechaLocal, elegido.getNombre(), barberoId);
+            if (slots.isEmpty())
+                return "No hay turnos disponibles para el " + fecha + " para el servicio " + elegido.getNombre() + ".";
+            StringBuilder sb = new StringBuilder("Horarios disponibles para " + elegido.getNombre() + " el " + fecha + ":\n");
+            for (DisponibilidadService.SlotDisponible slot : slots) {
+                sb.append("- ").append(slot.hora()).append(" a ").append(slot.horaFin())
+                  .append(" con ").append(slot.barberoNombre()).append("\n");
+            }
+            return sb.toString().trim();
+        } catch (IllegalArgumentException ex) {
+            return ex.getMessage();
         }
-        List<DisponibilidadService.SlotDisponible> slots =
-            disponibilidadService.calcular(tenantId, fechaLocal, servicio, barberoId);
-        if (slots.isEmpty())
-            return "No hay turnos disponibles para el " + fecha + " para el servicio " + servicio + ".";
-        StringBuilder sb = new StringBuilder("Horarios disponibles para " + servicio + " el " + fecha + ":\n");
-        for (DisponibilidadService.SlotDisponible slot : slots) {
-            sb.append("- ").append(slot.hora()).append(" a ").append(slot.horaFin())
-              .append(" con ").append(slot.barberoNombre()).append("\n");
-        }
-        return sb.toString().trim();
     }
 
-    @Tool(description = "Reserva un turno para el cliente. Requiere: nombre completo, servicio, fecha (YYYY-MM-DD), hora (HH:mm). Opcionales: telefono (para WhatsApp) y nombreBarbero.")
-    public String reservarTurno(String paciente, String servicio, String fecha, String hora, String telefono, String nombreBarbero) {
-        String tenantId = TenantContext.get();
-        LocalDate fechaLocal = LocalDate.parse(fecha);
-        if (fechaLocal.isBefore(LocalDate.now()))
-            return "No es posible reservar en fechas pasadas. Pedile al cliente una fecha válida a partir de hoy (" + LocalDate.now() + ").";
-
-        // Resolver barbero
-        Long barberoId = null;
-        String barberoNombre = null;
-        if (nombreBarbero != null && !nombreBarbero.isBlank()) {
-            var opt = barberoRepository.findByTenantIdAndActivoTrue(tenantId).stream()
-                .filter(b -> b.getNombre().equalsIgnoreCase(nombreBarbero))
-                .findFirst();
-            if (opt.isPresent()) { barberoId = opt.get().getId(); barberoNombre = opt.get().getNombre(); }
+    @Tool(description = "Guarda una reserva SOLO después de que el cliente confirme el resumen. Son OBLIGATORIOS nombre, teléfono, servicio activo, barbero elegido, fecha y hora disponibles. Nunca inventes datos ni llames si falta alguno. Solo el resultado 'Turno confirmado' con número acredita que se guardó.")
+    public String reservarTurno(
+            @ToolParam(description = "Nombre del cliente, proporcionado por él") String paciente,
+            @ToolParam(description = "Nombre exacto del servicio de buscarServicios") String servicio,
+            @ToolParam(description = "Fecha elegida en formato YYYY-MM-DD") String fecha,
+            @ToolParam(description = "Hora elegida de consultarDisponibilidad en formato HH:mm") String hora,
+            @ToolParam(description = "Teléfono real proporcionado por el cliente, obligatorio") String telefono,
+            @ToolParam(description = "Nombre exacto del barbero elegido por el cliente") String nombreBarbero) {
+        try {
+            var reserva = reservas.reservar(TenantContext.get(), paciente, telefono, servicio, nombreBarbero, fecha, hora);
+            var turno = reserva.turno();
+            return "Turno confirmado #" + turno.getId() + " para " + turno.getPaciente()
+                + " el " + turno.getFecha() + " de " + turno.getHora() + " a " + turno.getHoraFin()
+                + " con " + reserva.barberoNombre() + ". Servicio: " + turno.getServicio()
+                + ". Teléfono de contacto: " + turno.getTelefono() + ". ¡Te esperamos!";
+        } catch (IllegalArgumentException ex) {
+            return "No se creó la reserva. " + ex.getMessage();
         }
-        // Si no se especificó barbero, buscar el primero disponible para ese slot
-        if (barberoId == null) {
-            var slots = disponibilidadService.calcular(tenantId, fechaLocal, servicio, null);
-            var slot = slots.stream().filter(s -> s.hora().equals(hora)).findFirst();
-            if (slot.isEmpty())
-                return "El horario " + hora + " del " + fecha + " no está disponible para " + servicio + ". Usá consultarDisponibilidad para ver los horarios libres.";
-            barberoId = slot.get().barberoId();
-            barberoNombre = slot.get().barberoNombre();
-        } else {
-            // Validar que el slot esté libre para el barbero especificado
-            int duracion = disponibilidadService.obtenerDuracion(tenantId, servicio);
-            String horaFin = disponibilidadService.calcularHoraFin(hora, duracion);
-            if (!disponibilidadService.validar(barberoId, fechaLocal, hora, horaFin))
-                return "El horario " + hora + " del " + fecha + " ya está ocupado para " + nombreBarbero + ". Por favor elegí otro horario.";
-        }
-
-        int duracion = disponibilidadService.obtenerDuracion(tenantId, servicio);
-        String horaFin = disponibilidadService.calcularHoraFin(hora, duracion);
-
-        Turno turno = new Turno();
-        turno.setTenantId(tenantId);
-        turno.setBarberoId(barberoId);
-        turno.setPaciente(paciente);
-        turno.setServicio(servicio);
-        turno.setFecha(fechaLocal);
-        turno.setHora(hora);
-        turno.setHoraFin(horaFin);
-        if (telefono != null && !telefono.isBlank()) turno.setTelefono(telefono);
-        turnoRepository.save(turno);
-
-        String confirmacion = "Turno confirmado para " + paciente + " el " + fecha +
-               " de " + hora + " a " + horaFin +
-               " con " + barberoNombre + ". Servicio: " + servicio + ".";
-        if (telefono != null && !telefono.isBlank())
-            confirmacion += " Te vamos a contactar al " + telefono + ".";
-        confirmacion += " ¡Te esperamos!";
-        return confirmacion;
     }
 }

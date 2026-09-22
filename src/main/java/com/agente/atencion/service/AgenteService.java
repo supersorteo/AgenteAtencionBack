@@ -30,12 +30,12 @@ public class AgenteService {
             .orElseThrow(() -> new RuntimeException("Negocio no encontrado: " + tenantId));
 
         ChatClient client = clientCache.computeIfAbsent(tenantId, id ->
-            chatClientBuilder
+            chatClientBuilder.clone()
                 .defaultSystem(tenant.getContexto())
                 .defaultAdvisors(MessageChatMemoryAdvisor.builder(
                     MessageWindowChatMemory.builder()
                         .chatMemoryRepository(new InMemoryChatMemoryRepository())
-                        .maxMessages(10)
+                        .maxMessages(40)
                         .build())
                     .build())
                 .build()
@@ -45,7 +45,8 @@ public class AgenteService {
         try {
             return client.prompt()
                 .user(mensaje)
-                .tools(negocioTools, inmobiliariaTools)
+                .tools("barberia-demo".equals(tenantId)
+                    ? new Object[]{negocioTools} : new Object[]{negocioTools, inmobiliariaTools})
                 .advisors(a -> a.param(ChatMemory.CONVERSATION_ID, tenantId + "-" + sessionId))
                 .call()
                 .content();

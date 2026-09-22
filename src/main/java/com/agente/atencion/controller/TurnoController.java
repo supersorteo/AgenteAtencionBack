@@ -10,6 +10,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.transaction.annotation.Transactional;
+import java.time.Clock;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
@@ -21,14 +23,21 @@ public class TurnoController {
     @Autowired private TurnoRepository turnoRepository;
     @Autowired private BarberoRepository barberoRepository;
     @Autowired private DisponibilidadService disponibilidadService;
+    @Autowired private Clock negocioClock;
 
     @GetMapping("/{tenantId}")
-    public List<Turno> listar(@PathVariable String tenantId,
-                               @RequestParam(required = false) String fecha) {
-        if (fecha != null) {
-            return turnoRepository.findByTenantIdAndFecha(tenantId, LocalDate.parse(fecha));
+    public ResponseEntity<List<Turno>> listar(@PathVariable String tenantId,
+                               @RequestParam(required = false) String fecha, Authentication auth) {
+        if (auth == null || !(auth.getPrincipal() instanceof UsuarioAutenticado usuario)) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
-        return turnoRepository.findByTenantIdOrderByFechaAscHoraAsc(tenantId);
+        if (!"ADMIN".equals(usuario.rol()) || !tenantId.equals(usuario.tenantId())) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
+        if (fecha != null) {
+            return ResponseEntity.ok(turnoRepository.findByTenantIdAndFecha(tenantId, LocalDate.parse(fecha)));
+        }
+        return ResponseEntity.ok(turnoRepository.findByTenantIdOrderByFechaAscHoraAsc(tenantId));
     }
 
     @GetMapping("/{tenantId}/mis-turnos")
@@ -47,13 +56,18 @@ public class TurnoController {
     }
 
     @PostMapping("/{tenantId}")
+    @Transactional
     public ResponseEntity<?> crear(@PathVariable String tenantId, @RequestBody Turno turno) {
         turno.setTenantId(tenantId);
-        if (turno.getFecha() == null || turno.getFecha().isBefore(LocalDate.now())) {
+        if (turno.getFecha() == null || turno.getFecha().isBefore(LocalDate.now(negocioClock))) {
             return ResponseEntity.badRequest().body(Map.of("error", "No se pueden crear reservas en fechas pasadas."));
         }
         // Calcular horaFin si tenemos barberoId y servicio
         if (turno.getBarberoId() != null && turno.getServicio() != null && turno.getHora() != null) {
+            // Share the agent's lock so a simultaneous form booking cannot take the same slot.
+            if (barberoRepository.bloquearParaReserva(tenantId, turno.getBarberoId()).isEmpty()) {
+                return ResponseEntity.badRequest().body(Map.of("error", "El barbero no está disponible para este negocio."));
+            }
             int duracion = disponibilidadService.obtenerDuracion(tenantId, turno.getServicio());
             String horaFin = disponibilidadService.calcularHoraFin(turno.getHora(), duracion);
             turno.setHoraFin(horaFin);
@@ -67,11 +81,12 @@ public class TurnoController {
     }
 
     @PutMapping("/{tenantId}/{id}/reasignar")
+    @Transactional
     public ResponseEntity<?> reasignar(@PathVariable String tenantId,
                                         @PathVariable Long id,
                                         @RequestBody Map<String, Long> body,
                                         Authentication auth) {
-        if (!(auth.getPrincipal() instanceof UsuarioAutenticado u) || !"ADMIN".equals(u.rol())) {
+        if (auth == null || !(auth.getPrincipal() instanceof UsuarioAutenticado u) || !"ADMIN".equals(u.rol())) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
         if (!tenantId.equals(u.tenantId())) return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
@@ -83,9 +98,7 @@ public class TurnoController {
             .filter(t -> t.getTenantId().equals(tenantId))
             .map(t -> {
                 // Validar que el nuevo barbero existe y pertenece al tenant
-                boolean barberoValido = barberoRepository.findById(nuevoBarberoId)
-                    .filter(b -> b.getTenantId().equals(tenantId) && Boolean.TRUE.equals(b.getActivo()))
-                    .isPresent();
+                boolean barberoValido = barberoRepository.bloquearParaReserva(tenantId, nuevoBarberoId).isPresent();
                 if (!barberoValido) {
                     return ResponseEntity.badRequest().<Object>body(Map.of("error", "Barbero no válido para este tenant"));
                 }

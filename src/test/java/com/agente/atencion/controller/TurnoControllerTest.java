@@ -1,6 +1,14 @@
 package com.agente.atencion.controller;
 
 import com.agente.atencion.entity.Turno;
+import com.agente.atencion.entity.Barbero;
+import com.agente.atencion.repository.BarberoRepository;
+import com.agente.atencion.security.UsuarioAutenticado;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.test.util.ReflectionTestUtils;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneId;
 import com.agente.atencion.repository.TurnoRepository;
 import com.agente.atencion.service.DisponibilidadService;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -32,6 +40,7 @@ class TurnoControllerTest {
     ObjectMapper json;
 
     @Mock TurnoRepository turnoRepository;
+    @Mock BarberoRepository barberoRepository;
     @Mock DisponibilidadService disponibilidadService;
     @InjectMocks TurnoController controller;
 
@@ -39,6 +48,8 @@ class TurnoControllerTest {
 
     @BeforeEach
     void setUp() {
+        ReflectionTestUtils.setField(controller, "negocioClock", Clock.fixed(
+            Instant.parse("2026-09-21T12:00:00Z"), ZoneId.of("America/Montevideo")));
         json = new ObjectMapper().registerModule(new JavaTimeModule());
         mvc = MockMvcBuilders.standaloneSetup(controller)
             .setMessageConverters(new MappingJackson2HttpMessageConverter(json))
@@ -47,6 +58,7 @@ class TurnoControllerTest {
 
     @Test
     void post_slotDisponible_retorna200ConHoraFin() throws Exception {
+        when(barberoRepository.bloquearParaReserva(TENANT, 1L)).thenReturn(Optional.of(new Barbero()));
         Turno entrada = turnoConBarbero("Juan García", "Corte de cabello", "2026-09-23", "10:00", 1L);
 
         Turno guardado = turnoConBarbero("Juan García", "Corte de cabello", "2026-09-23", "10:00", 1L);
@@ -68,6 +80,7 @@ class TurnoControllerTest {
 
     @Test
     void post_slotOcupado_retorna409() throws Exception {
+        when(barberoRepository.bloquearParaReserva(TENANT, 1L)).thenReturn(Optional.of(new Barbero()));
         Turno entrada = turnoConBarbero("Pedro López", "Corte de cabello", "2026-09-23", "10:00", 1L);
 
         when(disponibilidadService.obtenerDuracion(TENANT, "Corte de cabello")).thenReturn(30);
@@ -105,7 +118,7 @@ class TurnoControllerTest {
         when(turnoRepository.findByTenantIdAndFecha(TENANT, LocalDate.of(2026, 9, 23)))
             .thenReturn(List.of());
 
-        mvc.perform(get("/api/v1/turnos/" + TENANT).param("fecha", "2026-09-23"))
+        mvc.perform(get("/api/v1/turnos/" + TENANT).param("fecha", "2026-09-23").principal(admin()))
             .andExpect(status().isOk())
             .andExpect(content().json("[]"));
     }
@@ -125,6 +138,7 @@ class TurnoControllerTest {
         when(turnoRepository.save(any())).thenReturn(updated);
 
         mvc.perform(put("/api/v1/turnos/" + TENANT + "/1/estado")
+                .principal(admin())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"estado\":\"COMPLETADO\"}"))
             .andExpect(status().isOk())
@@ -132,6 +146,10 @@ class TurnoControllerTest {
     }
 
     // ── helper ───────────────────────────────────────────
+
+    private UsernamePasswordAuthenticationToken admin() {
+        return new UsernamePasswordAuthenticationToken(new UsuarioAutenticado("admin", "ADMIN", TENANT, null), null, List.of());
+    }
 
     private Turno turnoConBarbero(String paciente, String servicio, String fecha, String hora, Long barberoId) {
         Turno t = new Turno();

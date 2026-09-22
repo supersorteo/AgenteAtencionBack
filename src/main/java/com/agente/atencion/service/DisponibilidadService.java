@@ -9,6 +9,8 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.time.Clock;
+import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 
@@ -20,6 +22,7 @@ public class DisponibilidadService {
     @Autowired private BloqueoHorarioRepository bloqueoRepository;
     @Autowired private TurnoRepository turnoRepository;
     @Autowired private ServicioRepository servicioRepository;
+    @Autowired private Clock negocioClock;
 
     private static final DateTimeFormatter FMT = DateTimeFormatter.ofPattern("HH:mm");
     private static final int INTERVALO_MINUTOS = 30;
@@ -27,11 +30,16 @@ public class DisponibilidadService {
     public record SlotDisponible(String hora, String horaFin, Long barberoId, String barberoNombre) {}
 
     public List<SlotDisponible> calcular(String tenantId, LocalDate fecha, String servicioNombre, Long barberoIdFiltro) {
+        LocalDateTime ahora = LocalDateTime.now(negocioClock);
+        if (fecha.isBefore(ahora.toLocalDate())) return List.of();
         int duracion = obtenerDuracion(tenantId, servicioNombre);
+        if (duracion <= 0 || duracion >= 24 * 60) return List.of();
         int diaSemana = fecha.getDayOfWeek().getValue(); // 1=Lun, 7=Dom
 
         List<Barbero> barberos = barberoIdFiltro != null
-            ? barberoRepository.findById(barberoIdFiltro).map(List::of).orElse(List.of())
+            ? barberoRepository.findById(barberoIdFiltro)
+                .filter(b -> tenantId.equals(b.getTenantId()) && Boolean.TRUE.equals(b.getActivo()))
+                .map(List::of).orElse(List.of())
             : barberoRepository.findByTenantIdAndActivoTrue(tenantId);
 
         List<SlotDisponible> resultado = new ArrayList<>();
@@ -47,17 +55,23 @@ public class DisponibilidadService {
 
             List<Turno> turnosExistentes = turnoRepository
                 .findByBarberoIdAndFecha(barbero.getId(), fecha);
+            var bloqueos = bloqueoRepository.findByBarberoIdAndFecha(barbero.getId(), fecha);
 
-            LocalTime cursor = inicio;
-            while (!cursor.plusMinutes(duracion).isAfter(cierre)) {
+            // Use minutes to avoid wrapping around midnight and looping indefinitely.
+            int cierreMinutos = cierre.toSecondOfDay() / 60;
+            for (int minuto = inicio.toSecondOfDay() / 60;
+                    minuto + duracion <= cierreMinutos; minuto += INTERVALO_MINUTOS) {
+                LocalTime cursor = LocalTime.of(minuto / 60, minuto % 60);
                 LocalTime fin = cursor.plusMinutes(duracion);
                 String horaStr = cursor.format(FMT);
                 String horaFinStr = fin.format(FMT);
 
-                if (!tieneConflicto(barbero.getId(), fecha, horaStr, horaFinStr, turnosExistentes)) {
+                boolean bloqueado = bloqueos.stream().anyMatch(b ->
+                    horaStr.compareTo(b.getHoraFin()) < 0 && horaFinStr.compareTo(b.getHoraInicio()) > 0);
+                if (fecha.atTime(cursor).isAfter(ahora) && !bloqueado
+                        && !tieneConflicto(barbero.getId(), fecha, horaStr, horaFinStr, turnosExistentes)) {
                     resultado.add(new SlotDisponible(horaStr, horaFinStr, barbero.getId(), barbero.getNombre()));
                 }
-                cursor = cursor.plusMinutes(INTERVALO_MINUTOS);
             }
         }
 
@@ -87,6 +101,7 @@ public class DisponibilidadService {
     private boolean tieneConflicto(Long barberoId, LocalDate fecha, String horaInicio, String horaFin, List<Turno> existentes) {
         // Regla: conflicto si inicio < finExistente AND fin > inicioExistente
         for (Turno t : existentes) {
+            if ("CANCELADO".equals(t.getEstado())) continue;
             String finExistente = t.getHoraFin() != null ? t.getHoraFin()
                 : LocalTime.parse(t.getHora(), FMT).plusMinutes(30).format(FMT);
             if (horaInicio.compareTo(finExistente) < 0 && horaFin.compareTo(t.getHora()) > 0) {

@@ -1,4 +1,0 @@
--------------------------------------------------------------------------------
-Test set: com.agente.atencion.service.DisponibilidadServiceTest
--------------------------------------------------------------------------------
-Tests run: 11, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.369 s -- in com.agente.atencion.service.DisponibilidadServiceTest

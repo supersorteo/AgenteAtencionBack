@@ -116,6 +116,20 @@ public class TurnoController {
             .orElse(ResponseEntity.notFound().build());
     }
 
+    @DeleteMapping("/{tenantId}/{id}")
+    public ResponseEntity<?> eliminar(@PathVariable String tenantId,
+                                       @PathVariable Long id,
+                                       Authentication auth) {
+        if (auth == null || !(auth.getPrincipal() instanceof UsuarioAutenticado u)
+                || !"ADMIN".equals(u.rol()) || !tenantId.equals(u.tenantId())) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
+        return turnoRepository.findById(id)
+            .filter(t -> t.getTenantId().equals(tenantId))
+            .map(t -> { turnoRepository.delete(t); return ResponseEntity.ok().build(); })
+            .orElse(ResponseEntity.notFound().build());
+    }
+
     @PutMapping("/{tenantId}/{id}/estado")
     public ResponseEntity<Turno> actualizarEstado(@PathVariable String tenantId,
                                                    @PathVariable Long id,

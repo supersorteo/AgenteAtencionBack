@@ -22,7 +22,7 @@ public class BarberoController {
 
     @GetMapping("/{tenantId}")
     public List<Barbero> listar(@PathVariable String tenantId) {
-        return barberoRepository.findByTenantId(tenantId);
+        return barberoRepository.findByTenantIdAndActivoTrue(tenantId);
     }
 
     @PostMapping("/{tenantId}")

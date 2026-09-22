@@ -17,8 +17,11 @@ import org.springframework.stereotype.Component;
 import java.time.LocalDate;
 import java.time.Clock;
 import java.time.format.TextStyle;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 @Component
 public class NegocioTools {
@@ -52,14 +55,22 @@ public class NegocioTools {
         String tenantId = TenantContext.get();
         List<Servicio> servicios = servicioRepository.findByTenantIdAndActivoTrue(tenantId);
         if (servicios.isEmpty()) return "No hay servicios disponibles en este momento.";
-        StringBuilder sb = new StringBuilder("Servicios disponibles:\n");
+        Map<String, List<Servicio>> porCategoria = new LinkedHashMap<>();
         for (Servicio s : servicios) {
-            sb.append(s.getEmoji()).append(" ").append(s.getNombre())
-              .append(" — $").append(s.getPrecio().intValue()).append(" UYU")
-              .append(" (").append(s.getDuracionMinutos()).append(" min)");
-            if (s.getDescripcion() != null && !s.getDescripcion().isBlank())
-                sb.append(": ").append(s.getDescripcion());
-            sb.append("\n");
+            String cat = s.getCategoria() != null && !s.getCategoria().isBlank() ? s.getCategoria() : "Otros";
+            porCategoria.computeIfAbsent(cat, k -> new ArrayList<>()).add(s);
+        }
+        StringBuilder sb = new StringBuilder("Servicios disponibles:\n");
+        for (Map.Entry<String, List<Servicio>> entry : porCategoria.entrySet()) {
+            sb.append("\n## ").append(entry.getKey()).append("\n");
+            for (Servicio s : entry.getValue()) {
+                sb.append(s.getEmoji()).append(" ").append(s.getNombre())
+                  .append(" — $").append(s.getPrecio().intValue()).append(" UYU")
+                  .append(" (").append(s.getDuracionMinutos()).append(" min)");
+                if (s.getDescripcion() != null && !s.getDescripcion().isBlank())
+                    sb.append(": ").append(s.getDescripcion());
+                sb.append("\n");
+            }
         }
         return sb.toString().trim();
     }

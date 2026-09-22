@@ -14,7 +14,7 @@ INSTRUCCIONES:
 - Horario de atención: Lunes a Viernes 9:00-18:00 | Sábados 10:00-14:00
 - Teléfono: 2900-5678 | Dirección: Av. Brasil 2345, Montevideo',
     true
-) ON CONFLICT (id) DO UPDATE SET contexto = EXCLUDED.contexto;
+) ON CONFLICT DO NOTHING;
 
 INSERT INTO tenants (id, nombre, contexto, activo) VALUES (
     'clinica-demo',
@@ -31,7 +31,7 @@ INSTRUCCIONES:
 - Pedí nombre completo y servicio deseado antes de reservar un turno
 - Para cancelaciones indicá que llamen al teléfono',
     true
-) ON CONFLICT (id) DO UPDATE SET contexto = EXCLUDED.contexto;
+) ON CONFLICT DO NOTHING;
 
 INSERT INTO propiedades (tenant_id, tipo, operacion, zona, precio, moneda, habitaciones, banos, metros_cuadrados, descripcion, disponible)
 SELECT * FROM (VALUES
@@ -80,7 +80,7 @@ INSTRUCCIONES:
 - Para cancelaciones indicá que llamen al teléfono o escriban por Instagram
 - Si no hay turnos disponibles, sugerí otra fecha',
     true
-) ON CONFLICT (id) DO UPDATE SET contexto = EXCLUDED.contexto;
+) ON CONFLICT DO NOTHING;
 
 INSERT INTO servicios (tenant_id, nombre, descripcion, precio, duracion_minutos, emoji, categoria, imagen_url, activo)
 SELECT * FROM (VALUES

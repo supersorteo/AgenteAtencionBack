@@ -7,6 +7,8 @@ import com.agente.atencion.repository.ServicioRepository;
 import com.agente.atencion.service.DisponibilidadService;
 import com.agente.atencion.service.TenantContext;
 import com.agente.atencion.service.ReservaAgenteService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -20,6 +22,8 @@ import java.util.Locale;
 
 @Component
 public class NegocioTools {
+
+    private static final Logger log = LoggerFactory.getLogger(NegocioTools.class);
 
     @Autowired private ReservaAgenteService reservas;
     @Autowired private Clock negocioClock;
@@ -108,14 +112,19 @@ public class NegocioTools {
             @ToolParam(description = "Hora elegida de consultarDisponibilidad en formato HH:mm") String hora,
             @ToolParam(description = "Teléfono real proporcionado por el cliente, obligatorio") String telefono,
             @ToolParam(description = "Nombre exacto del barbero elegido por el cliente") String nombreBarbero) {
+        String tenantId = TenantContext.get();
+        log.info("[reservarTurno] tenantId={} paciente={} servicio={} fecha={} hora={} barbero={}",
+            tenantId, paciente, servicio, fecha, hora, nombreBarbero);
         try {
-            var reserva = reservas.reservar(TenantContext.get(), paciente, telefono, servicio, nombreBarbero, fecha, hora);
+            var reserva = reservas.reservar(tenantId, paciente, telefono, servicio, nombreBarbero, fecha, hora);
             var turno = reserva.turno();
+            log.info("[reservarTurno] GUARDADO id={} tenantId={} fecha={} hora={}", turno.getId(), turno.getTenantId(), turno.getFecha(), turno.getHora());
             return "Turno confirmado #" + turno.getId() + " para " + turno.getPaciente()
                 + " el " + turno.getFecha() + " de " + turno.getHora() + " a " + turno.getHoraFin()
                 + " con " + reserva.barberoNombre() + ". Servicio: " + turno.getServicio()
                 + ". Teléfono de contacto: " + turno.getTelefono() + ". ¡Te esperamos!";
-        } catch (IllegalArgumentException ex) {
+        } catch (IllegalArgumentException | IllegalStateException ex) {
+            log.warn("[reservarTurno] NO guardado: {}", ex.getMessage());
             return "No se creó la reserva. " + ex.getMessage();
         }
     }

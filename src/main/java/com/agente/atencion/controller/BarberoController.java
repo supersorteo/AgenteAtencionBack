@@ -30,7 +30,9 @@ public class BarberoController {
 
     @PostMapping("/{tenantId}")
     @Transactional
-    public Barbero crear(@PathVariable String tenantId, @RequestBody Barbero barbero) {
+    public ResponseEntity<Barbero> crear(@PathVariable String tenantId, @RequestBody Barbero barbero,
+                                          Authentication auth) {
+        if (!isAdmin(auth, tenantId)) return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         barbero.setTenantId(tenantId);
         Barbero saved = barberoRepository.save(barbero);
         for (int dia = 2; dia <= 7; dia++) {
@@ -41,13 +43,15 @@ public class BarberoController {
             h.setHoraFin("18:00");
             horarioRepository.save(h);
         }
-        return saved;
+        return ResponseEntity.ok(saved);
     }
 
     @PutMapping("/{tenantId}/{id}")
     public ResponseEntity<Barbero> actualizar(@PathVariable String tenantId,
                                                @PathVariable Long id,
-                                               @RequestBody Barbero datos) {
+                                               @RequestBody Barbero datos,
+                                               Authentication auth) {
+        if (!isAdmin(auth, tenantId)) return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         return barberoRepository.findById(id)
             .filter(b -> b.getTenantId().equals(tenantId))
             .map(b -> {
@@ -61,7 +65,10 @@ public class BarberoController {
     }
 
     @GetMapping("/{tenantId}/{id}/impacto")
-    public ResponseEntity<Map<String, Object>> impacto(@PathVariable String tenantId, @PathVariable Long id) {
+    public ResponseEntity<Map<String, Object>> impacto(@PathVariable String tenantId,
+                                                        @PathVariable Long id,
+                                                        Authentication auth) {
+        if (!isAdmin(auth, tenantId)) return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         return barberoRepository.findById(id)
             .filter(b -> b.getTenantId().equals(tenantId))
             .map(b -> {
@@ -78,7 +85,9 @@ public class BarberoController {
 
     @DeleteMapping("/{tenantId}/{id}")
     @Transactional
-    public ResponseEntity<Void> eliminar(@PathVariable String tenantId, @PathVariable Long id) {
+    public ResponseEntity<Void> eliminar(@PathVariable String tenantId, @PathVariable Long id,
+                                          Authentication auth) {
+        if (!isAdmin(auth, tenantId)) return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         return barberoRepository.findById(id)
             .filter(b -> b.getTenantId().equals(tenantId))
             .map(b -> {
@@ -119,19 +128,32 @@ public class BarberoController {
 
     @PostMapping("/{tenantId}/{id}/horario")
     @Transactional
-    public HorarioBarbero setHorarioDia(@PathVariable Long id,
-                                         @RequestBody HorarioBarbero horario) {
+    public ResponseEntity<HorarioBarbero> setHorarioDia(@PathVariable String tenantId,
+                                                          @PathVariable Long id,
+                                                          @RequestBody HorarioBarbero horario,
+                                                          Authentication auth) {
+        if (!isAdmin(auth, tenantId)) return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         horario.setBarberoId(id);
-        // Reemplaza si ya existe para ese día
         horarioRepository.findByBarberoIdAndDiaSemana(id, horario.getDiaSemana())
             .ifPresent(h -> horario.setId(h.getId()));
-        return horarioRepository.save(horario);
+        return ResponseEntity.ok(horarioRepository.save(horario));
     }
 
     @DeleteMapping("/{tenantId}/{id}/horario/{dia}")
     @Transactional
-    public ResponseEntity<Void> eliminarDia(@PathVariable Long id, @PathVariable Integer dia) {
+    public ResponseEntity<Void> eliminarDia(@PathVariable String tenantId,
+                                             @PathVariable Long id,
+                                             @PathVariable Integer dia,
+                                             Authentication auth) {
+        if (!isAdmin(auth, tenantId)) return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         horarioRepository.deleteByBarberoIdAndDiaSemana(id, dia);
         return ResponseEntity.ok().build();
+    }
+
+    private boolean isAdmin(Authentication auth, String tenantId) {
+        return auth != null
+            && auth.getPrincipal() instanceof UsuarioAutenticado u
+            && "ADMIN".equals(u.rol())
+            && tenantId.equals(u.tenantId());
     }
 }

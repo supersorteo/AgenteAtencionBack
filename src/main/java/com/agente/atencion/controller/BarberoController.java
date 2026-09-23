@@ -2,8 +2,7 @@ package com.agente.atencion.controller;
 
 import com.agente.atencion.entity.Barbero;
 import com.agente.atencion.entity.HorarioBarbero;
-import com.agente.atencion.repository.BarberoRepository;
-import com.agente.atencion.repository.HorarioBarberoRepository;
+import com.agente.atencion.repository.*;
 import com.agente.atencion.security.UsuarioAutenticado;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -12,6 +11,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/v1/barberos")
@@ -19,6 +19,9 @@ public class BarberoController {
 
     @Autowired private BarberoRepository barberoRepository;
     @Autowired private HorarioBarberoRepository horarioRepository;
+    @Autowired private TurnoRepository turnoRepository;
+    @Autowired private BloqueoHorarioRepository bloqueoRepository;
+    @Autowired private UsuarioRepository usuarioRepository;
 
     @GetMapping("/{tenantId}")
     public List<Barbero> listar(@PathVariable String tenantId) {
@@ -26,9 +29,19 @@ public class BarberoController {
     }
 
     @PostMapping("/{tenantId}")
+    @Transactional
     public Barbero crear(@PathVariable String tenantId, @RequestBody Barbero barbero) {
         barbero.setTenantId(tenantId);
-        return barberoRepository.save(barbero);
+        Barbero saved = barberoRepository.save(barbero);
+        for (int dia = 2; dia <= 7; dia++) {
+            HorarioBarbero h = new HorarioBarbero();
+            h.setBarberoId(saved.getId());
+            h.setDiaSemana(dia);
+            h.setHoraInicio("09:00");
+            h.setHoraFin("18:00");
+            horarioRepository.save(h);
+        }
+        return saved;
     }
 
     @PutMapping("/{tenantId}/{id}")
@@ -47,13 +60,33 @@ public class BarberoController {
             .orElse(ResponseEntity.notFound().build());
     }
 
-    @DeleteMapping("/{tenantId}/{id}")
-    public ResponseEntity<Void> desactivar(@PathVariable String tenantId, @PathVariable Long id) {
+    @GetMapping("/{tenantId}/{id}/impacto")
+    public ResponseEntity<Map<String, Object>> impacto(@PathVariable String tenantId, @PathVariable Long id) {
         return barberoRepository.findById(id)
             .filter(b -> b.getTenantId().equals(tenantId))
             .map(b -> {
-                b.setActivo(false);
-                barberoRepository.save(b);
+                long turnos = turnoRepository.countByBarberoId(id);
+                boolean tieneUsuario = usuarioRepository.findByBarberoId(id).isPresent();
+                return ResponseEntity.ok(Map.<String, Object>of(
+                    "nombre", b.getNombre(),
+                    "turnos", turnos,
+                    "tieneUsuario", tieneUsuario
+                ));
+            })
+            .orElse(ResponseEntity.notFound().build());
+    }
+
+    @DeleteMapping("/{tenantId}/{id}")
+    @Transactional
+    public ResponseEntity<Void> eliminar(@PathVariable String tenantId, @PathVariable Long id) {
+        return barberoRepository.findById(id)
+            .filter(b -> b.getTenantId().equals(tenantId))
+            .map(b -> {
+                turnoRepository.deleteByBarberoId(id);
+                bloqueoRepository.deleteByBarberoId(id);
+                horarioRepository.deleteByBarberoId(id);
+                usuarioRepository.findByBarberoId(id).ifPresent(usuarioRepository::delete);
+                barberoRepository.delete(b);
                 return ResponseEntity.ok().<Void>build();
             })
             .orElse(ResponseEntity.notFound().build());

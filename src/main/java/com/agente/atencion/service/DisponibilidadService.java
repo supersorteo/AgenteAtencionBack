@@ -9,7 +9,6 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
 import java.time.LocalTime;
-import java.time.Clock;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
@@ -22,7 +21,7 @@ public class DisponibilidadService {
     @Autowired private BloqueoHorarioRepository bloqueoRepository;
     @Autowired private TurnoRepository turnoRepository;
     @Autowired private ServicioRepository servicioRepository;
-    @Autowired private Clock negocioClock;
+    @Autowired private TenantClockService tenantClockService;
 
     private static final DateTimeFormatter FMT = DateTimeFormatter.ofPattern("HH:mm");
     private static final int INTERVALO_MINUTOS = 30;
@@ -30,7 +29,7 @@ public class DisponibilidadService {
     public record SlotDisponible(String hora, String horaFin, Long barberoId, String barberoNombre) {}
 
     public List<SlotDisponible> calcular(String tenantId, LocalDate fecha, String servicioNombre, Long barberoIdFiltro) {
-        LocalDateTime ahora = LocalDateTime.now(negocioClock);
+        LocalDateTime ahora = LocalDateTime.now(tenantClockService.clockFor(tenantId));
         if (fecha.isBefore(ahora.toLocalDate())) return List.of();
         int duracion = obtenerDuracion(tenantId, servicioNombre);
         if (duracion <= 0 || duracion >= 24 * 60) return List.of();

@@ -1,6 +1,8 @@
 package com.agente.atencion.service;
 
+import com.agente.atencion.entity.NegocioConfig;
 import com.agente.atencion.entity.Tenant;
+import com.agente.atencion.repository.NegocioConfigRepository;
 import com.agente.atencion.repository.TenantRepository;
 import com.agente.atencion.tools.InmobiliariaTools;
 import com.agente.atencion.tools.NegocioTools;
@@ -24,6 +26,7 @@ public class AgenteService {
 
     @Autowired private ChatClient.Builder chatClientBuilder;
     @Autowired private TenantRepository tenantRepository;
+    @Autowired private NegocioConfigRepository negocioConfigRepository;
     @Autowired private NegocioTools negocioTools;
     @Autowired private InmobiliariaTools inmobiliariaTools;
 
@@ -43,9 +46,21 @@ public class AgenteService {
                 .build()
         );
 
+        // Nombre dinámico reemplaza el hardcodeado en el contexto del tenant
+        String systemPrompt = negocioConfigRepository.findById(tenantId)
+            .map(cfg -> {
+                String contexto = tenant.getContexto();
+                if (cfg.getNombre() != null && tenant.getNombre() != null
+                        && !cfg.getNombre().isBlank() && !tenant.getNombre().isBlank()) {
+                    contexto = contexto.replace(tenant.getNombre(), cfg.getNombre());
+                }
+                return buildDatosNegocio(cfg) + "\n\n" + contexto;
+            })
+            .orElse(tenant.getContexto());
+
         // ChatClient se construye en cada request con el prompt actualizado desde BD
         ChatClient client = chatClientBuilder.clone()
-            .defaultSystem(tenant.getContexto())
+            .defaultSystem(systemPrompt)
             .defaultAdvisors(MessageChatMemoryAdvisor.builder(memory).build())
             .build();
 
@@ -61,5 +76,23 @@ public class AgenteService {
         } finally {
             TenantContext.clear();
         }
+    }
+
+    private String buildDatosNegocio(NegocioConfig cfg) {
+        StringBuilder sb = new StringBuilder("=== DATOS ACTUALES DEL NEGOCIO ===\n");
+        if (cfg.getNombre()    != null) sb.append("Nombre: ")    .append(cfg.getNombre())    .append("\n");
+        if (cfg.getDireccion() != null) sb.append("Dirección: ") .append(cfg.getDireccion()) .append("\n");
+        if (cfg.getTelefono()  != null) sb.append("Teléfono: ")  .append(cfg.getTelefono())  .append("\n");
+        if (cfg.getEmail()     != null) sb.append("Email: ")     .append(cfg.getEmail())     .append("\n");
+        if (cfg.getHorario1()  != null) sb.append("Horario: ")   .append(cfg.getHorario1())  .append("\n");
+        if (cfg.getHorario2()  != null && !cfg.getHorario2().isBlank()) sb.append("         ").append(cfg.getHorario2()).append("\n");
+        if (cfg.getHorario3()  != null && !cfg.getHorario3().isBlank()) sb.append("         ").append(cfg.getHorario3()).append("\n");
+        sb.append("=== REGLAS ABSOLUTAS ===\n");
+        sb.append("- JAMÁS inventes, agregues ni modifiques nombres de barberos, servicios, precios, fechas u horarios. Usá ÚNICAMENTE lo que devuelven las herramientas.\n");
+        sb.append("- Si una herramienta devuelve 2 barberos, mencionás exactamente esos 2. No agregues ni uno más.\n");
+        sb.append("- Si una herramienta devuelve 0 resultados, decís que no hay disponibilidad. No inventes alternativas.\n");
+        sb.append("- El nombre del negocio es exactamente: ").append(cfg.getNombre() != null ? cfg.getNombre() : "este negocio").append(". No uses variaciones ni apodos.\n");
+        sb.append("===================================");
+        return sb.toString();
     }
 }

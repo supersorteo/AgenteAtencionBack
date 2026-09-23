@@ -5,6 +5,7 @@ import com.agente.atencion.repository.BarberoRepository;
 import com.agente.atencion.repository.ServicioRepository;
 import com.agente.atencion.repository.TurnoRepository;
 import com.agente.atencion.security.UsuarioAutenticado;
+import com.agente.atencion.service.TenantClockService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -23,6 +24,7 @@ public class DashboardController {
     @Autowired private TurnoRepository turnoRepository;
     @Autowired private ServicioRepository servicioRepository;
     @Autowired private BarberoRepository barberoRepository;
+    @Autowired private TenantClockService tenantClockService;
 
     @GetMapping("/{tenantId}/hoy")
     public ResponseEntity<?> hoy(@PathVariable String tenantId, Authentication auth) {
@@ -31,7 +33,7 @@ public class DashboardController {
                 || !"ADMIN".equals(u.rol())) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
-        LocalDate hoy = LocalDate.now();
+        LocalDate hoy = LocalDate.now(tenantClockService.clockFor(tenantId));
         List<Turno> turnos = turnoRepository.findByTenantIdAndFecha(tenantId, hoy);
 
         long total = turnos.size();

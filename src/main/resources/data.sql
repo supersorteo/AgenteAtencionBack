@@ -82,30 +82,94 @@ INSTRUCCIONES:
     true
 ) ON CONFLICT DO NOTHING;
 
-INSERT INTO servicios (tenant_id, nombre, descripcion, precio, duracion_minutos, emoji, categoria, imagen_url, activo)
+INSERT INTO negocio_config (
+    tenant_id, nombre, tagline, hero_titulo1, hero_titulo2, hero_desc, footer_desc,
+    direccion, telefono, email, whatsapp, instagram_handle,
+    horario1, horario2, horario3,
+    t1_nombre, t1_iniciales, t1_servicio, t1_texto,
+    t2_nombre, t2_iniciales, t2_servicio, t2_texto,
+    t3_nombre, t3_iniciales, t3_servicio, t3_texto
+) VALUES (
+    'barberia-demo',
+    'El Corte',
+    'Barbería Premium · Montevideo',
+    'El arte del',
+    'corte perfecto',
+    'Reservá tu turno online en segundos. Sin llamadas, sin esperas. Tu barbero favorito, siempre disponible.',
+    'Barbería moderna en el corazón de Montevideo. Más de 10 años dando el mejor corte de la ciudad.',
+    'Av. General Rivera 2500, Mvd',
+    '2708-3456',
+    'contacto@elcortemvd.com',
+    '59899000000',
+    'elcortemvd',
+    'Martes — Sábado: 9:00 — 20:00',
+    'Domingo: 10:00 — 15:00',
+    'Lunes: Cerrado',
+    'Federico M.', 'FM', 'Corte + Barba',
+    'El mejor barbero de Montevideo sin dudas. Ya llevo 2 años viniendo cada mes y el resultado siempre supera las expectativas. Lugar y atención impecables.',
+    'Sebastián R.', 'SR', 'Perfilado de barba',
+    'Ambiente premium, técnica profesional y atención de primer nivel. El único lugar donde confío mi barba. Imposible encontrar algo igual en la ciudad.',
+    'Martín K.', 'MK', 'Corte clásico',
+    'Reservé online en 2 minutos, puntualidad total y el corte exactamente como lo pedí. El sistema de turnos es brillante. 100% recomendado.'
+) ON CONFLICT DO NOTHING;
+
+INSERT INTO servicios (tenant_id, nombre, descripcion, precio, duracion_minutos, emoji, categoria, imagen_url, imagen_url2, imagen_url3, activo)
 SELECT * FROM (VALUES
-    ('barberia-demo', 'Corte clásico',    'Corte tradicional con tijera, prolijo y personalizado', 400.0, 30, '✂️', 'Corte', 'https://images.unsplash.com/photo-1503951914875-452162b0f3f1?w=600', true),
-    ('barberia-demo', 'Fade degradado',   'Degradado moderno con máquina, efecto fade perfecto', 450.0, 35, '✂️', 'Corte', 'https://images.unsplash.com/photo-1599351431202-1e0f0137899a?w=600', true),
-    ('barberia-demo', 'Texturizado',      'Corte con textura y volumen, estilo urbano contemporáneo', 480.0, 35, '✂️', 'Corte', 'https://images.unsplash.com/photo-1567894340315-735d7c361db0?w=600', true),
-    ('barberia-demo', 'Corte niños',      'Corte para menores de 12 años, ambiente amigable y paciente', 350.0, 25, '👦', 'Corte', 'https://images.unsplash.com/photo-1607453998774-d533f65dac99?w=600', true),
-    ('barberia-demo', 'Corte + barba',    'Corte de cabello más perfilado y arreglo completo de barba', 650.0, 45, '🪒', 'Combo', 'https://images.unsplash.com/photo-1621605815971-fbc98d665033?w=600', true),
-    ('barberia-demo', 'Arreglo de barba', 'Perfilado, delineado y definición de barba con navaja', 300.0, 20, '🪒', 'Barba', 'https://images.unsplash.com/photo-1534297635766-a262cdcb8ee4?w=600', true),
-    ('barberia-demo', 'Afeitado clásico', 'Afeitado tradicional con navaja, toalla caliente y aftershave premium', 350.0, 30, '🔥', 'Barba', 'https://images.unsplash.com/photo-1605497788044-5a32c7078486?w=600', true),
-    ('barberia-demo', 'Tratamiento capilar', 'Hidratación profunda, masaje capilar y nutrición del cabello', 800.0, 60, '💆', 'Coloración', 'https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?w=600', true)
-) AS v(tenant_id, nombre, descripcion, precio, duracion_minutos, emoji, categoria, imagen_url, activo)
+    -- CORTE
+    ('barberia-demo','Corte Clásico','Corte tradicional con máquina y tijera. Incluye lavado y secado.',400.0,30,'✂️','Corte',
+     'https://images.unsplash.com/photo-1605497788044-5a32c7078486?w=800&q=80',
+     'https://images.unsplash.com/photo-1657105052497-f996284ffff8?w=800&q=80',
+     'https://images.unsplash.com/photo-1635273051937-a0ddef9573b6?w=800&q=80',true),
+    ('barberia-demo','Fade / Degradado','Degradado moderno con máquina, desde piel o bajo. Diseño de línea incluido.',480.0,45,'✂️','Corte',
+     'https://images.unsplash.com/photo-1657105052497-f996284ffff8?w=800&q=80',
+     'https://images.unsplash.com/photo-1635273051937-a0ddef9573b6?w=800&q=80',
+     'https://images.unsplash.com/photo-1605497788044-5a32c7078486?w=800&q=80',true),
+    ('barberia-demo','Corte + Diseño','Corte personalizado con diseño geométrico o iniciales a cargo del maestro barbero.',550.0,50,'✂️','Corte',
+     'https://images.unsplash.com/photo-1635273051937-a0ddef9573b6?w=800&q=80',
+     'https://images.unsplash.com/photo-1605497788044-5a32c7078486?w=800&q=80',
+     'https://images.unsplash.com/photo-1657105052497-f996284ffff8?w=800&q=80',true),
+    -- BARBA
+    ('barberia-demo','Arreglo de Barba','Perfilado y recorte de barba con tijera y navaja. Hidratación incluida.',300.0,20,'🪒','Barba',
+     'https://images.unsplash.com/photo-1517832606299-7ae9b720a186?w=800&q=80',
+     'https://images.unsplash.com/photo-1599011176306-4a96f1516d4d?w=800&q=80',
+     'https://images.unsplash.com/photo-1705976062088-5433328c2dcd?w=800&q=80',true),
+    ('barberia-demo','Afeitado Clásico','Afeitado completo con navaja, toalla caliente, espuma artesanal y aftershave.',380.0,30,'🪒','Barba',
+     'https://images.unsplash.com/photo-1599011176306-4a96f1516d4d?w=800&q=80',
+     'https://images.unsplash.com/photo-1705976062088-5433328c2dcd?w=800&q=80',
+     'https://images.unsplash.com/photo-1517832606299-7ae9b720a186?w=800&q=80',true),
+    ('barberia-demo','Diseño de Barba','Modelado y diseño de barba a medida según la morfología del rostro. Acabado premium.',450.0,35,'🪒','Barba',
+     'https://images.unsplash.com/photo-1705976062088-5433328c2dcd?w=800&q=80',
+     'https://images.unsplash.com/photo-1517832606299-7ae9b720a186?w=800&q=80',
+     'https://images.unsplash.com/photo-1599011176306-4a96f1516d4d?w=800&q=80',true),
+    -- COMBO
+    ('barberia-demo','Combo Corte + Barba','El combo más popular. Corte a elección más arreglo de barba completo.',650.0,55,'💈','Combo',
+     'https://images.unsplash.com/photo-1630827020718-3433092696e7?w=800&q=80',
+     'https://images.unsplash.com/photo-1647140655214-e4a2d914971f?w=800&q=80',
+     'https://images.unsplash.com/photo-1503951914875-452162b0f3f1?w=800&q=80',true),
+    ('barberia-demo','Combo Premium','Corte + arreglo de barba + lavado con champú profesional y secado con productos.',850.0,70,'💈','Combo',
+     'https://images.unsplash.com/photo-1647140655214-e4a2d914971f?w=800&q=80',
+     'https://images.unsplash.com/photo-1503951914875-452162b0f3f1?w=800&q=80',
+     'https://images.unsplash.com/photo-1630827020718-3433092696e7?w=800&q=80',true),
+    ('barberia-demo','Combo VIP','Experiencia completa: corte + afeitado con navaja + tratamiento capilar + masaje de cuero cabelludo.',1200.0,90,'💈','Combo',
+     'https://images.unsplash.com/photo-1503951914875-452162b0f3f1?w=800&q=80',
+     'https://images.unsplash.com/photo-1630827020718-3433092696e7?w=800&q=80',
+     'https://images.unsplash.com/photo-1647140655214-e4a2d914971f?w=800&q=80',true),
+    -- COLORACIÓN
+    ('barberia-demo','Coloración Completa','Tintura completa de raíz a punta. Incluye consulta de tono, aplicación y sellado del color.',1400.0,90,'🎨','Coloración',
+     'https://images.unsplash.com/photo-1470259078422-826894b933aa?w=800&q=80',
+     'https://images.unsplash.com/photo-1617391654484-2894196c2cc9?w=800&q=80',
+     'https://images.unsplash.com/photo-1660144689256-c9a4a4ac116c?w=800&q=80',true),
+    ('barberia-demo','Mechas y Reflejos','Técnica de luces parciales: balayage, babylights o mechas clásicas. Brillo y movimiento natural.',1800.0,120,'🎨','Coloración',
+     'https://images.unsplash.com/photo-1617391654484-2894196c2cc9?w=800&q=80',
+     'https://images.unsplash.com/photo-1660144689256-c9a4a4ac116c?w=800&q=80',
+     'https://images.unsplash.com/photo-1470259078422-826894b933aa?w=800&q=80',true),
+    ('barberia-demo','Decoloración','Aclarado total con protección capilar intensiva. Ideal para cambios radicales de look.',2200.0,120,'🎨','Coloración',
+     'https://images.unsplash.com/photo-1660144689256-c9a4a4ac116c?w=800&q=80',
+     'https://images.unsplash.com/photo-1470259078422-826894b933aa?w=800&q=80',
+     'https://images.unsplash.com/photo-1617391654484-2894196c2cc9?w=800&q=80',true)
+) AS v(tenant_id, nombre, descripcion, precio, duracion_minutos, emoji, categoria, imagen_url, imagen_url2, imagen_url3, activo)
 WHERE NOT EXISTS (SELECT 1 FROM servicios WHERE tenant_id = 'barberia-demo');
 
--- Barbero demo para barberia-demo
-INSERT INTO barberos (tenant_id, nombre, especialidad, foto, activo)
-SELECT 'barberia-demo', 'Juan García', 'Cortes modernos y arreglo de barba', null, true
-WHERE NOT EXISTS (SELECT 1 FROM barberos WHERE tenant_id = 'barberia-demo' AND nombre = 'Juan García');
-
-INSERT INTO horarios_barbero (barbero_id, dia_semana, hora_inicio, hora_fin)
-SELECT b.id, v.dia, v.inicio, v.fin
-FROM barberos b
-CROSS JOIN (VALUES (2,'09:00','20:00'),(3,'09:00','20:00'),(4,'09:00','20:00'),(5,'09:00','20:00'),(6,'09:00','20:00'),(7,'10:00','15:00')) AS v(dia, inicio, fin)
-WHERE b.tenant_id = 'barberia-demo' AND b.nombre = 'Juan García'
-AND NOT EXISTS (SELECT 1 FROM horarios_barbero WHERE barbero_id = b.id);
 
 -- Galería demo para barberia-demo
 INSERT INTO galeria (tenant_id, titulo, descripcion, imagen_url, categoria, activo)

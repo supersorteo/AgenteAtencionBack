@@ -6,7 +6,9 @@ import java.util.List;
 import java.util.Optional;
 
 public interface UsuarioRepository extends JpaRepository<Usuario, Long> {
+    Optional<Usuario> findByUsername(String username);
     Optional<Usuario> findByUsernameAndActivoTrue(String username);
     List<Usuario> findByTenantIdAndActivoTrue(String tenantId);
     Optional<Usuario> findByBarberoIdAndActivoTrue(Long barberoId);
+    Optional<Usuario> findByBarberoId(Long barberoId);
 }

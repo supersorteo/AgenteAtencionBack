@@ -10,6 +10,7 @@ import java.util.List;
 public interface BloqueoHorarioRepository extends JpaRepository<BloqueoHorario, Long> {
     List<BloqueoHorario> findByTenantId(String tenantId);
     List<BloqueoHorario> findByTenantIdAndBarberoId(String tenantId, Long barberoId);
+    void deleteByBarberoId(Long barberoId);
     List<BloqueoHorario> findByBarberoIdAndFecha(Long barberoId, LocalDate fecha);
 
     @Query("SELECT b FROM BloqueoHorario b WHERE b.barberoId = :barberoId AND b.fecha = :fecha " +

@@ -5,13 +5,13 @@ import com.agente.atencion.repository.BarberoRepository;
 import com.agente.atencion.repository.TurnoRepository;
 import com.agente.atencion.security.UsuarioAutenticado;
 import com.agente.atencion.service.DisponibilidadService;
+import com.agente.atencion.service.TenantClockService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.transaction.annotation.Transactional;
-import java.time.Clock;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
@@ -23,7 +23,7 @@ public class TurnoController {
     @Autowired private TurnoRepository turnoRepository;
     @Autowired private BarberoRepository barberoRepository;
     @Autowired private DisponibilidadService disponibilidadService;
-    @Autowired private Clock negocioClock;
+    @Autowired private TenantClockService tenantClockService;
 
     @GetMapping("/{tenantId}")
     public ResponseEntity<List<Turno>> listar(@PathVariable String tenantId,
@@ -59,7 +59,7 @@ public class TurnoController {
     @Transactional
     public ResponseEntity<?> crear(@PathVariable String tenantId, @RequestBody Turno turno) {
         turno.setTenantId(tenantId);
-        if (turno.getFecha() == null || turno.getFecha().isBefore(LocalDate.now(negocioClock))) {
+        if (turno.getFecha() == null || turno.getFecha().isBefore(LocalDate.now(tenantClockService.clockFor(tenantId)))) {
             return ResponseEntity.badRequest().body(Map.of("error", "No se pueden crear reservas en fechas pasadas."));
         }
         // Calcular horaFin si tenemos barberoId y servicio

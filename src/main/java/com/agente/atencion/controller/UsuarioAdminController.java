@@ -53,10 +53,45 @@ public class UsuarioAdminController {
 
         if (username == null || username.isBlank() || password == null || password.isBlank())
             return ResponseEntity.badRequest().body(Map.of("error", "username y password son obligatorios"));
-        if (usuarioRepo.findByUsernameAndActivoTrue(username).isPresent())
-            return ResponseEntity.badRequest().body(Map.of("error", "El usuario '" + username + "' ya existe"));
         if (barberoId != null && !barberoRepo.existsById(barberoId))
             return ResponseEntity.badRequest().body(Map.of("error", "Barbero no encontrado"));
+
+        // Si ya existe un usuario para este barbero (incluso inactivo), reactivarlo
+        if (barberoId != null) {
+            var existing = usuarioRepo.findByBarberoId(barberoId);
+            if (existing.isPresent()) {
+                Usuario u = existing.get();
+                u.setUsername(username.toLowerCase().trim());
+                u.setPassword(encoder.encode(password));
+                u.setActivo(true);
+                usuarioRepo.save(u);
+                return ResponseEntity.ok(Map.of(
+                    "id", u.getId(),
+                    "username", u.getUsername(),
+                    "rol", u.getRol(),
+                    "barberoId", u.getBarberoId() != null ? u.getBarberoId() : 0L,
+                    "password", password
+                ));
+            }
+        }
+
+        // Si existe con ese username (activo o inactivo) — reactivar solo si pertenece a este tenant
+        var existingByUsername = usuarioRepo.findByUsername(username);
+        if (existingByUsername.isPresent()) {
+            Usuario u = existingByUsername.get();
+            if (!tenantId.equals(u.getTenantId()))
+                return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of("error", "El nombre de usuario no está disponible"));
+            if (u.isActivo())
+                return ResponseEntity.badRequest().body(Map.of("error", "El usuario '" + username + "' ya existe"));
+            u.setPassword(encoder.encode(password));
+            u.setBarberoId(barberoId);
+            u.setActivo(true);
+            usuarioRepo.save(u);
+            return ResponseEntity.ok(Map.of(
+                "id", u.getId(), "username", u.getUsername(),
+                "rol", u.getRol(), "barberoId", u.getBarberoId() != null ? u.getBarberoId() : 0L
+            ));
+        }
 
         Usuario u = new Usuario();
         u.setUsername(username.toLowerCase().trim());

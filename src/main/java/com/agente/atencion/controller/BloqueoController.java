@@ -28,13 +28,19 @@ public class BloqueoController {
     }
 
     @PostMapping("/{tenantId}")
-    public BloqueoHorario crear(@PathVariable String tenantId, @RequestBody BloqueoHorario bloqueo) {
+    public ResponseEntity<?> crear(@PathVariable String tenantId,
+                                    @RequestBody BloqueoHorario bloqueo,
+                                    Authentication auth) {
+        if (!isAdmin(auth, tenantId)) return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         bloqueo.setTenantId(tenantId);
-        return bloqueoRepository.save(bloqueo);
+        return ResponseEntity.ok(bloqueoRepository.save(bloqueo));
     }
 
     @DeleteMapping("/{tenantId}/{id}")
-    public ResponseEntity<Void> eliminar(@PathVariable String tenantId, @PathVariable Long id) {
+    public ResponseEntity<Void> eliminar(@PathVariable String tenantId,
+                                          @PathVariable Long id,
+                                          Authentication auth) {
+        if (!isAdmin(auth, tenantId)) return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         return bloqueoRepository.findById(id)
             .filter(b -> b.getTenantId().equals(tenantId))
             .map(b -> {
@@ -76,5 +82,12 @@ public class BloqueoController {
             .filter(b -> b.getTenantId().equals(tenantId) && b.getBarberoId().equals(u.barberoId()))
             .map(b -> { bloqueoRepository.delete(b); return ResponseEntity.ok().<Void>build(); })
             .orElse(ResponseEntity.notFound().build());
+    }
+
+    private boolean isAdmin(Authentication auth, String tenantId) {
+        return auth != null
+            && auth.getPrincipal() instanceof UsuarioAutenticado u
+            && "ADMIN".equals(u.rol())
+            && tenantId.equals(u.tenantId());
     }
 }

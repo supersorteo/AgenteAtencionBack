@@ -53,7 +53,8 @@ public class UsuarioAdminController {
 
         if (username == null || username.isBlank() || password == null || password.isBlank())
             return ResponseEntity.badRequest().body(Map.of("error", "username y password son obligatorios"));
-        if (barberoId != null && !barberoRepo.existsById(barberoId))
+        if (barberoId != null && barberoRepo.findById(barberoId)
+                .filter(b -> b.getTenantId().equals(tenantId)).isEmpty())
             return ResponseEntity.badRequest().body(Map.of("error", "Barbero no encontrado"));
 
         // Si ya existe un usuario para este barbero (incluso inactivo), reactivarlo

@@ -133,6 +133,8 @@ public class BarberoController {
                                                           @RequestBody HorarioBarbero horario,
                                                           Authentication auth) {
         if (!isAdmin(auth, tenantId)) return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        if (barberoRepository.findById(id).filter(b -> b.getTenantId().equals(tenantId)).isEmpty())
+            return ResponseEntity.notFound().build();
         horario.setBarberoId(id);
         horarioRepository.findByBarberoIdAndDiaSemana(id, horario.getDiaSemana())
             .ifPresent(h -> horario.setId(h.getId()));
@@ -146,6 +148,8 @@ public class BarberoController {
                                              @PathVariable Integer dia,
                                              Authentication auth) {
         if (!isAdmin(auth, tenantId)) return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        if (barberoRepository.findById(id).filter(b -> b.getTenantId().equals(tenantId)).isEmpty())
+            return ResponseEntity.notFound().build();
         horarioRepository.deleteByBarberoIdAndDiaSemana(id, dia);
         return ResponseEntity.ok().build();
     }

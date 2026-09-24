@@ -2,8 +2,11 @@ package com.agente.atencion.controller;
 
 import com.agente.atencion.entity.Galeria;
 import com.agente.atencion.repository.GaleriaRepository;
+import com.agente.atencion.security.UsuarioAutenticado;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
@@ -19,15 +22,20 @@ public class GaleriaController {
     }
 
     @PostMapping("/{tenantId}")
-    public Galeria crear(@PathVariable String tenantId, @RequestBody Galeria galeria) {
+    public ResponseEntity<Galeria> crear(@PathVariable String tenantId,
+                                          @RequestBody Galeria galeria,
+                                          Authentication auth) {
+        if (!isAdmin(auth, tenantId)) return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         galeria.setTenantId(tenantId);
-        return galeriaRepository.save(galeria);
+        return ResponseEntity.ok(galeriaRepository.save(galeria));
     }
 
     @PutMapping("/{tenantId}/{id}")
     public ResponseEntity<Galeria> actualizar(@PathVariable String tenantId,
                                                @PathVariable Long id,
-                                               @RequestBody Galeria datos) {
+                                               @RequestBody Galeria datos,
+                                               Authentication auth) {
+        if (!isAdmin(auth, tenantId)) return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         return galeriaRepository.findById(id)
             .filter(g -> g.getTenantId().equals(tenantId))
             .map(g -> {
@@ -43,7 +51,10 @@ public class GaleriaController {
     }
 
     @DeleteMapping("/{tenantId}/{id}")
-    public ResponseEntity<Void> ocultar(@PathVariable String tenantId, @PathVariable Long id) {
+    public ResponseEntity<Void> ocultar(@PathVariable String tenantId,
+                                         @PathVariable Long id,
+                                         Authentication auth) {
+        if (!isAdmin(auth, tenantId)) return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         return galeriaRepository.findById(id)
             .filter(g -> g.getTenantId().equals(tenantId))
             .map(g -> {
@@ -52,5 +63,12 @@ public class GaleriaController {
                 return ResponseEntity.ok().<Void>build();
             })
             .orElse(ResponseEntity.notFound().build());
+    }
+
+    private boolean isAdmin(Authentication auth, String tenantId) {
+        return auth != null
+            && auth.getPrincipal() instanceof UsuarioAutenticado u
+            && "ADMIN".equals(u.rol())
+            && tenantId.equals(u.tenantId());
     }
 }

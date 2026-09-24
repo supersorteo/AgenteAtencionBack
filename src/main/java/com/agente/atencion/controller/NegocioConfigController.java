@@ -28,7 +28,9 @@ public class NegocioConfigController {
     public ResponseEntity<NegocioConfig> save(@PathVariable String tenantId,
                                                @RequestBody NegocioConfig config,
                                                Authentication auth) {
-        if (!(auth.getPrincipal() instanceof UsuarioAutenticado u) || !tenantId.equals(u.tenantId())) {
+        if (!(auth.getPrincipal() instanceof UsuarioAutenticado u)
+                || !tenantId.equals(u.tenantId())
+                || !"ADMIN".equals(u.rol())) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
         config.setTenantId(tenantId);

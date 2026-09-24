@@ -2,8 +2,11 @@ package com.agente.atencion.controller;
 
 import com.agente.atencion.entity.Servicio;
 import com.agente.atencion.repository.ServicioRepository;
+import com.agente.atencion.security.UsuarioAutenticado;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
@@ -19,16 +22,21 @@ public class ServicioController {
     }
 
     @PostMapping("/{tenantId}")
-    public Servicio crear(@PathVariable String tenantId, @RequestBody Servicio servicio) {
+    public ResponseEntity<Servicio> crear(@PathVariable String tenantId,
+                                           @RequestBody Servicio servicio,
+                                           Authentication auth) {
+        if (!isAdmin(auth, tenantId)) return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         servicio.setTenantId(tenantId);
         servicio.setActivo(true);
-        return servicioRepository.save(servicio);
+        return ResponseEntity.ok(servicioRepository.save(servicio));
     }
 
     @PutMapping("/{tenantId}/{id}")
     public ResponseEntity<Servicio> actualizar(@PathVariable String tenantId,
                                                 @PathVariable Long id,
-                                                @RequestBody Servicio datos) {
+                                                @RequestBody Servicio datos,
+                                                Authentication auth) {
+        if (!isAdmin(auth, tenantId)) return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         return servicioRepository.findById(id)
             .filter(s -> s.getTenantId().equals(tenantId))
             .map(s -> {
@@ -43,7 +51,10 @@ public class ServicioController {
     }
 
     @DeleteMapping("/{tenantId}/{id}")
-    public ResponseEntity<Void> eliminar(@PathVariable String tenantId, @PathVariable Long id) {
+    public ResponseEntity<Void> eliminar(@PathVariable String tenantId,
+                                          @PathVariable Long id,
+                                          Authentication auth) {
+        if (!isAdmin(auth, tenantId)) return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         return servicioRepository.findById(id)
             .filter(s -> s.getTenantId().equals(tenantId))
             .map(s -> {
@@ -52,5 +63,12 @@ public class ServicioController {
                 return ResponseEntity.ok().<Void>build();
             })
             .orElse(ResponseEntity.notFound().build());
+    }
+
+    private boolean isAdmin(Authentication auth, String tenantId) {
+        return auth != null
+            && auth.getPrincipal() instanceof UsuarioAutenticado u
+            && "ADMIN".equals(u.rol())
+            && tenantId.equals(u.tenantId());
     }
 }

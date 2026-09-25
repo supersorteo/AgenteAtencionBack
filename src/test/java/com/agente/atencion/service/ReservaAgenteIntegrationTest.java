@@ -250,8 +250,12 @@ class ReservaAgenteIntegrationTest {
 
     private String reservarDesdeHerramienta(String[] valores) {
         TenantContext.set(TENANT);
-        try { return tools.reservarTurno(valores[0], valores[2], valores[4], valores[5], valores[1], valores[3]); }
-        finally { TenantContext.clear(); }
+        try {
+            var r = reservas.reservar(TENANT, valores[0], valores[1], valores[2], valores[3], valores[4], valores[5]);
+            return "Turno confirmado #" + r.turno().getId();
+        } catch (IllegalArgumentException | IllegalStateException ex) {
+            return "No se creó la reserva. " + ex.getMessage();
+        } finally { TenantContext.clear(); }
     }
 
     private UsernamePasswordAuthenticationToken auth(String rol, String tenant, Long barberoId) {

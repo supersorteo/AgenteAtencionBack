@@ -117,28 +117,4 @@ public class NegocioTools {
         }
     }
 
-    @Tool(description = "Guarda una reserva SOLO después de que el cliente confirme el resumen. Son OBLIGATORIOS nombre, teléfono, servicio activo, barbero elegido, fecha y hora disponibles. Nunca inventes datos ni llames si falta alguno. Solo el resultado 'Turno confirmado' con número acredita que se guardó.")
-    public String reservarTurno(
-            @ToolParam(description = "Nombre del cliente, proporcionado por él") String paciente,
-            @ToolParam(description = "Nombre exacto del servicio de buscarServicios") String servicio,
-            @ToolParam(description = "Fecha elegida en formato YYYY-MM-DD") String fecha,
-            @ToolParam(description = "Hora elegida de consultarDisponibilidad en formato HH:mm") String hora,
-            @ToolParam(description = "Teléfono real proporcionado por el cliente, obligatorio") String telefono,
-            @ToolParam(description = "Nombre exacto del barbero elegido por el cliente") String nombreBarbero) {
-        String tenantId = TenantContext.get();
-        log.info("[reservarTurno] tenantId={} paciente={} servicio={} fecha={} hora={} barbero={}",
-            tenantId, paciente, servicio, fecha, hora, nombreBarbero);
-        try {
-            var reserva = reservas.reservar(tenantId, paciente, telefono, servicio, nombreBarbero, fecha, hora);
-            var turno = reserva.turno();
-            log.info("[reservarTurno] GUARDADO id={} tenantId={} fecha={} hora={}", turno.getId(), turno.getTenantId(), turno.getFecha(), turno.getHora());
-            return "Turno confirmado #" + turno.getId() + " para " + turno.getPaciente()
-                + " el " + turno.getFecha() + " de " + turno.getHora() + " a " + turno.getHoraFin()
-                + " con " + reserva.barberoNombre() + ". Servicio: " + turno.getServicio()
-                + ". Teléfono de contacto: " + turno.getTelefono() + ". ¡Te esperamos!";
-        } catch (IllegalArgumentException | IllegalStateException ex) {
-            log.warn("[reservarTurno] NO guardado: {}", ex.getMessage());
-            return "No se creó la reserva. " + ex.getMessage();
-        }
-    }
 }

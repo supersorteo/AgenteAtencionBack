@@ -9,6 +9,9 @@ public interface UsuarioRepository extends JpaRepository<Usuario, Long> {
     Optional<Usuario> findByUsername(String username);
     Optional<Usuario> findByUsernameAndActivoTrue(String username);
     List<Usuario> findByTenantIdAndActivoTrue(String tenantId);
+    List<Usuario> findByRolAndActivoTrue(String rol);
+    long countByRolAndActivoTrue(String rol);
     Optional<Usuario> findByBarberoIdAndActivoTrue(Long barberoId);
     Optional<Usuario> findByBarberoId(Long barberoId);
+    void deleteByTenantId(String tenantId);
 }

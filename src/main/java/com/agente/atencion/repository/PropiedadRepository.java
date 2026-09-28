@@ -10,6 +10,7 @@ import java.util.List;
 
 @Repository
 public interface PropiedadRepository extends JpaRepository<Propiedad, Long> {
+    void deleteByTenantId(String tenantId);
 
     @Query("SELECT p FROM Propiedad p WHERE p.tenantId = :tenantId AND p.disponible = true " +
            "AND (:tipo IS NULL OR LOWER(p.tipo) LIKE LOWER(CONCAT('%', :tipo, '%'))) " +

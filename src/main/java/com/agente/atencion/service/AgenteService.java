@@ -6,7 +6,6 @@ import com.agente.atencion.repository.BarberoRepository;
 import com.agente.atencion.repository.NegocioConfigRepository;
 import com.agente.atencion.repository.ServicioRepository;
 import com.agente.atencion.repository.TenantRepository;
-import com.agente.atencion.tools.InmobiliariaTools;
 import com.agente.atencion.tools.NegocioTools;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -16,15 +15,17 @@ import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.chat.memory.InMemoryChatMemoryRepository;
 import org.springframework.ai.chat.memory.MessageWindowChatMemory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
-import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 @Service
 public class AgenteService {
 
     private static final Logger log = LoggerFactory.getLogger(AgenteService.class);
+    // Tiempo máximo de inactividad de una sesión: 30 minutos
+    private static final long SESSION_TTL_MS = 30 * 60 * 1000L;
 
     @Autowired private ChatClient.Builder chatClientBuilder;
     @Autowired private TenantRepository tenantRepository;
@@ -32,49 +33,55 @@ public class AgenteService {
     @Autowired private BarberoRepository barberoRepository;
     @Autowired private ServicioRepository servicioRepository;
     @Autowired private NegocioTools negocioTools;
-    @Autowired private InmobiliariaTools inmobiliariaTools;
 
-    // Solo el historial de conversaciones se cachea — el prompt se lee de BD en cada request
-    private final Map<String, MessageWindowChatMemory> memoryCache = new ConcurrentHashMap<>();
-    // Sesiones donde el agente ya invitó al usuario a confirmar la reserva
-    private final Map<String, Boolean> awaitingReserva = new ConcurrentHashMap<>();
+    // Un objeto de memoria por sesión de cliente (tenantId + sessionId)
+    private final ConcurrentHashMap<String, MessageWindowChatMemory> sessionMemory  = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, Long>                    sessionTouched  = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, Boolean>                 awaitingReserva = new ConcurrentHashMap<>();
 
     public String chat(String tenantId, String sessionId, String mensaje) {
         Tenant tenant = tenantRepository.findById(tenantId)
             .orElseThrow(() -> new RuntimeException("Negocio no encontrado: " + tenantId));
 
-        log.info("[AgenteService] chat tenantId={} sessionId={} mensajeLen={}", tenantId, sessionId, mensaje.length());
+        String sessionKey = tenantId + "-" + sessionId;
+        sessionTouched.put(sessionKey, System.currentTimeMillis());
 
-        MessageWindowChatMemory memory = memoryCache.computeIfAbsent(tenantId, id ->
+        log.info("[AgenteService] chat tenantId={} session={} mensajeLen={}", tenantId, sessionKey, mensaje.length());
+
+        MessageWindowChatMemory memory = sessionMemory.computeIfAbsent(sessionKey, k ->
             MessageWindowChatMemory.builder()
                 .chatMemoryRepository(new InMemoryChatMemoryRepository())
                 .maxMessages(40)
                 .build()
         );
 
-        // Nombre dinámico reemplaza el hardcodeado en el contexto del tenant
+        // Contexto genérico si el tenant todavía no tiene uno configurado
+        String contexto = tenant.getContexto();
+        if (contexto == null || contexto.isBlank()) {
+            contexto = "Sos el asistente virtual de " + tenant.getNombre()
+                + ". Ayudás a los clientes con información sobre servicios, precios y reservas de turnos.";
+        }
+
+        final String contextoFinal = contexto;
         String systemPrompt = negocioConfigRepository.findById(tenantId)
             .map(cfg -> {
-                String contexto = tenant.getContexto();
-                if (cfg.getNombre() != null && tenant.getNombre() != null
-                        && !cfg.getNombre().isBlank() && !tenant.getNombre().isBlank()) {
-                    contexto = contexto.replace(tenant.getNombre(), cfg.getNombre());
+                String ctx = contextoFinal;
+                if (cfg.getNombre() != null && !cfg.getNombre().isBlank()
+                        && tenant.getNombre() != null && !tenant.getNombre().isBlank()) {
+                    ctx = ctx.replace(tenant.getNombre(), cfg.getNombre());
                 }
-                return buildDatosNegocio(cfg, tenantId) + "\n\n" + contexto;
+                return buildDatosNegocio(cfg, tenantId) + "\n\n" + ctx;
             })
-            .orElse(tenant.getContexto());
+            .orElse(contextoFinal);
 
-        // ChatClient se construye en cada request con el prompt actualizado desde BD
         ChatClient client = chatClientBuilder.clone()
             .defaultSystem(systemPrompt)
             .defaultAdvisors(MessageChatMemoryAdvisor.builder(memory).build())
             .build();
 
-        String sessionKey = tenantId + "-" + sessionId;
         boolean eraEsperandoConfirmacion = awaitingReserva.getOrDefault(sessionKey, false);
         boolean usuarioAfirma = esAfirmativo(mensaje);
 
-        // Si el usuario menciona reserva explícitamente, activar el flag para este y próximos ciclos
         if (tieneIntentReserva(mensaje)) {
             awaitingReserva.put(sessionKey, true);
             eraEsperandoConfirmacion = awaitingReserva.get(sessionKey);
@@ -85,8 +92,7 @@ public class AgenteService {
         try {
             respuesta = client.prompt()
                 .user(mensaje)
-                .tools("barberia-demo".equals(tenantId)
-                    ? new Object[]{negocioTools} : new Object[]{negocioTools, inmobiliariaTools})
+                .tools(negocioTools)
                 .advisors(a -> a.param(ChatMemory.CONVERSATION_ID, sessionKey))
                 .call()
                 .content();
@@ -106,7 +112,6 @@ public class AgenteService {
             respuesta = respuesta.trim() + " [ABRIR_MODAL_RESERVA]";
             awaitingReserva.remove(sessionKey);
         } else {
-            // Detectar invitación del agente — lista amplia para cubrir variantes del modelo
             String norm = respuesta.toLowerCase()
                 .replace("á","a").replace("é","e").replace("í","i").replace("ó","o").replace("ú","u");
             boolean agenteInvita = norm.contains("avisame") || norm.contains("decime")
@@ -121,6 +126,24 @@ public class AgenteService {
         }
 
         return respuesta;
+    }
+
+    /** Limpia sesiones sin actividad en los últimos 30 minutos — corre cada 15 minutos. */
+    @Scheduled(fixedDelay = 15 * 60 * 1000L)
+    public void limpiarSesionesInactivas() {
+        long ahora = System.currentTimeMillis();
+        int antes = sessionMemory.size();
+        sessionTouched.entrySet().removeIf(e -> {
+            if (ahora - e.getValue() > SESSION_TTL_MS) {
+                sessionMemory.remove(e.getKey());
+                awaitingReserva.remove(e.getKey());
+                return true;
+            }
+            return false;
+        });
+        int despues = sessionMemory.size();
+        if (antes != despues)
+            log.info("[AgenteService] limpieza: eliminadas {} sesiones. Activas: {}", antes - despues, despues);
     }
 
     private boolean tieneIntentReserva(String msg) {

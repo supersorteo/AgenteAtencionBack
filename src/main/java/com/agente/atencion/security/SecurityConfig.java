@@ -33,7 +33,9 @@ public class SecurityConfig {
             .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
                 // Siempre públicos
+                .requestMatchers(HttpMethod.POST, "/api/registro").permitAll()
                 .requestMatchers("/api/auth/**").permitAll()
+                .requestMatchers("/api/superadmin/**").hasRole("SUPER_ADMIN")
                 .requestMatchers("/api/v1/chat/**").permitAll()
                 // Landing: GET de catálogo y disponibilidad sin auth
                 .requestMatchers(HttpMethod.GET,

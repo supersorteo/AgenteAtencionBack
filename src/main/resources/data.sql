@@ -1,48 +1,10 @@
-INSERT INTO tenants (id, nombre, contexto, activo) VALUES (
-    'inmobiliaria-demo',
-    'Inmobiliaria Premium',
-    'Eres el asistente virtual de Inmobiliaria Premium, una inmobiliaria en Montevideo, Uruguay.
-
-Ayudás a los clientes a encontrar propiedades en venta o alquiler y a agendar visitas.
-
-INSTRUCCIONES:
-- Respondé siempre en español, de forma amable y profesional
-- Cuando el cliente mencione que busca una propiedad, usá buscarPropiedades con los criterios que mencione. Si no especifica algún criterio pasalo como null o 0
-- Cuando el cliente quiera visitar una propiedad, pedí nombre completo, teléfono, fecha y hora preferida, luego usá agendarVisita
-- Siempre mostrá el ID de cada propiedad para que el cliente pueda referenciarla
-- Para consultas sobre precios, ubicaciones o financiación indicá que un asesor los contactará
-- Horario de atención: Lunes a Viernes 9:00-18:00 | Sábados 10:00-14:00
-- Teléfono: 2900-5678 | Dirección: Av. Brasil 2345, Montevideo',
-    true
-) ON CONFLICT DO NOTHING;
-
-INSERT INTO tenants (id, nombre, contexto, activo) VALUES (
-    'clinica-demo',
-    'Clínica Bienestar',
-    'Eres el asistente virtual de Clínica Bienestar, una clínica médica en Montevideo, Uruguay.
-
-HORARIOS: Lunes a Viernes 8:00-20:00 | Sábados 9:00-14:00 | Domingos cerrado
-CONTACTO: Av. 18 de Julio 1234, Montevideo | Tel: 2901-1234
-
-INSTRUCCIONES:
-- Respondé siempre en español, de forma amable y profesional
-- Cuando el usuario pregunte por servicios o precios, llamá la herramienta buscarServicios para obtener la información actualizada
-- Podés consultar disponibilidad y reservar turnos usando tus herramientas
-- Pedí nombre completo y servicio deseado antes de reservar un turno
-- Para cancelaciones indicá que llamen al teléfono',
-    true
-) ON CONFLICT DO NOTHING;
-
-INSERT INTO propiedades (tenant_id, tipo, operacion, zona, precio, moneda, habitaciones, banos, metros_cuadrados, descripcion, disponible)
-SELECT * FROM (VALUES
-    ('inmobiliaria-demo', 'apartamento', 'alquiler', 'Pocitos', 1200.0, 'USD', 2, 1, 65.0, 'Luminoso apto con vista al mar, cocina equipada, edificio con portero 24h', true),
-    ('inmobiliaria-demo', 'apartamento', 'venta',    'Pocitos', 185000.0, 'USD', 3, 2, 110.0, 'A estrenar, terminaciones de lujo, garaje incluido, a 2 cuadras de la rambla', true),
-    ('inmobiliaria-demo', 'casa',        'venta',    'Carrasco', 450000.0, 'USD', 4, 3, 280.0, 'Casa con jardín y piscina, zona residencial tranquila, doble garaje', true),
-    ('inmobiliaria-demo', 'apartamento', 'alquiler', 'Cordón', 750.0, 'USD', 1, 1, 45.0, 'Monoambiente moderno, totalmente amoblado, ideal para profesional', true),
-    ('inmobiliaria-demo', 'local',       'alquiler', 'Centro', 2500.0, 'USD', null, null, 180.0, 'Local comercial en planta baja sobre avenida de alto tránsito', true),
-    ('inmobiliaria-demo', 'casa',        'alquiler', 'Punta Carretas', 2800.0, 'USD', 3, 2, 200.0, 'Casa con jardín, garaje para 2 autos, muy tranquila', true)
-) AS v(tenant_id, tipo, operacion, zona, precio, moneda, habitaciones, banos, metros_cuadrados, descripcion, disponible)
-WHERE NOT EXISTS (SELECT 1 FROM propiedades WHERE tenant_id = 'inmobiliaria-demo');
+-- Eliminar tenants demo heredados de versiones anteriores del proyecto
+DELETE FROM visitas   WHERE tenant_id IN ('inmobiliaria-demo', 'clinica-demo');
+DELETE FROM propiedades WHERE tenant_id IN ('inmobiliaria-demo', 'clinica-demo');
+DELETE FROM servicios WHERE tenant_id IN ('inmobiliaria-demo', 'clinica-demo');
+DELETE FROM tenants   WHERE id IN ('inmobiliaria-demo', 'clinica-demo');
+-- Limpiar código de invitación único antiguo (reemplazado por tabla codigos_invitacion)
+DELETE FROM system_config WHERE clave = 'codigo-invitacion';
 
 INSERT INTO tenants (id, nombre, contexto, activo) VALUES (
     'barberia-demo',
@@ -180,14 +142,3 @@ SELECT * FROM (VALUES
     ('barberia-demo', 'Corte texturizado', 'Corte moderno con textura y volumen', 'https://images.unsplash.com/photo-1599351431202-1e0f0137899a?w=600', 'cortes', true)
 ) AS v(tenant_id, titulo, descripcion, imagen_url, categoria, activo)
 WHERE NOT EXISTS (SELECT 1 FROM galeria WHERE tenant_id = 'barberia-demo');
-
-
-INSERT INTO servicios (tenant_id, nombre, descripcion, precio, duracion_minutos, emoji, activo)
-SELECT * FROM (VALUES
-    ('clinica-demo', 'Consulta médica general', 'Atención por médico general, diagnóstico y derivaciones', 800.0, 30, '🩺', true),
-    ('clinica-demo', 'Consulta pediatría',      'Atención pediátrica para niños de 0 a 14 años', 900.0, 30, '👶', true),
-    ('clinica-demo', 'Consulta ginecología',    'Consulta ginecológica y controles preventivos', 1000.0, 30, '🌸', true),
-    ('clinica-demo', 'Análisis de sangre',      'Extracción y análisis completo de laboratorio', 600.0, 20, '🔬', true),
-    ('clinica-demo', 'Electrocardiograma',      'ECG de reposo con interpretación médica', 1200.0, 20, '❤️', true)
-) AS v(tenant_id, nombre, descripcion, precio, duracion_minutos, emoji, activo)
-WHERE NOT EXISTS (SELECT 1 FROM servicios WHERE tenant_id = 'clinica-demo');

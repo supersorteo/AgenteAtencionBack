@@ -7,4 +7,5 @@ import java.util.List;
 public interface GaleriaRepository extends JpaRepository<Galeria, Long> {
     List<Galeria> findByTenantIdAndActivoTrue(String tenantId);
     List<Galeria> findByTenantId(String tenantId);
+    void deleteByTenantId(String tenantId);
 }

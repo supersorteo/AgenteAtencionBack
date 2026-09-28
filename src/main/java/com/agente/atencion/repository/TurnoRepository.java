@@ -12,6 +12,7 @@ public interface TurnoRepository extends JpaRepository<Turno, Long> {
     List<Turno> findByBarberoId(Long barberoId);
     long countByBarberoId(Long barberoId);
     void deleteByBarberoId(Long barberoId);
+    void deleteByTenantId(String tenantId);
     List<Turno> findByTenantIdAndBarberoIdOrderByFechaAscHoraAsc(String tenantId, Long barberoId);
     List<Turno> findByTenantIdAndBarberoIdAndFecha(String tenantId, Long barberoId, LocalDate fecha);
     List<Turno> findByTenantIdAndPacienteOrderByFechaDescHoraDesc(String tenantId, String paciente);

@@ -9,4 +9,5 @@ import java.util.List;
 public interface ServicioRepository extends JpaRepository<Servicio, Long> {
     List<Servicio> findByTenantIdAndActivoTrue(String tenantId);
     List<Servicio> findByTenantId(String tenantId);
+    void deleteByTenantId(String tenantId);
 }

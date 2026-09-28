@@ -2,6 +2,7 @@ package com.agente.atencion.security;
 
 import com.agente.atencion.entity.Usuario;
 import com.agente.atencion.repository.UsuarioRepository;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
@@ -11,6 +12,12 @@ public class DataInitializer implements CommandLineRunner {
 
     private final UsuarioRepository repo;
     private final PasswordEncoder encoder;
+
+    @Value("${app.superadmin.username}")
+    private String superAdminUsername;
+
+    @Value("${app.superadmin.password}")
+    private String superAdminPassword;
 
     public DataInitializer(UsuarioRepository repo, PasswordEncoder encoder) {
         this.repo = repo;
@@ -32,7 +39,18 @@ public class DataInitializer implements CommandLineRunner {
             admin.setRol("ADMIN");
             admin.setActivo(true);
             repo.save(admin);
-            System.out.println("[INFO] Usuario admin creado.");
+            System.out.println("[INFO] Usuario admin de barberia-demo creado.");
+        }
+
+        if (repo.findByUsernameAndActivoTrue(superAdminUsername).isEmpty()) {
+            Usuario sa = new Usuario();
+            sa.setUsername(superAdminUsername);
+            sa.setPassword(encoder.encode(superAdminPassword));
+            sa.setTenantId("system");
+            sa.setRol("SUPER_ADMIN");
+            sa.setActivo(true);
+            repo.save(sa);
+            System.out.println("[INFO] Super admin '" + superAdminUsername + "' creado.");
         }
     }
 }

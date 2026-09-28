@@ -8,4 +8,5 @@ import java.time.LocalDate;
 @Repository
 public interface VisitaRepository extends JpaRepository<Visita, Long> {
     boolean existsByTenantIdAndPropiedadIdAndFechaAndHora(String tenantId, Long propiedadId, LocalDate fecha, String hora);
+    void deleteByTenantId(String tenantId);
 }

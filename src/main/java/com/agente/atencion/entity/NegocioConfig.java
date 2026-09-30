@@ -33,6 +33,8 @@ public class NegocioConfig {
 
     // Personalización visual por tenant
     private String colorPrimario;   // hex: "#c9a84c"
+    private String colorFondo;      // hex: fondo base de página
+    private String colorTexto;      // hex: texto principal
     private String logoUrl;         // Cloudinary URL del logo
     private String heroBgUrl;       // URL imagen de fondo del hero en la landing
     private String moneda;          // "UYU", "ARS", "USD", "CLP", "COP", "MXN", "PEN"

@@ -34,6 +34,7 @@ public class NegocioConfig {
     // Personalización visual por tenant
     private String colorPrimario;   // hex: "#c9a84c"
     private String logoUrl;         // Cloudinary URL del logo
+    private String heroBgUrl;       // URL imagen de fondo del hero en la landing
     private String moneda;          // "UYU", "ARS", "USD", "CLP", "COP", "MXN", "PEN"
     private String paisCodigo;      // "UY", "AR", "US" — prefijo para WhatsApp
 

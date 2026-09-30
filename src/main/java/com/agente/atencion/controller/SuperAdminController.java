@@ -5,6 +5,7 @@ import com.agente.atencion.entity.Barbero;
 import com.agente.atencion.entity.CodigoInvitacion;
 import com.agente.atencion.entity.Tenant;
 import com.agente.atencion.repository.*;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.http.ResponseEntity;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
@@ -34,13 +35,15 @@ public class SuperAdminController {
     private final NegocioConfigRepository negocioConfigRepo;
     private final VisitaRepository visitaRepo;
     private final PropiedadRepository propiedadRepo;
+    private final PasswordEncoder encoder;
 
     public SuperAdminController(TenantRepository tenantRepo, UsuarioRepository usuarioRepo,
                                 CodigoInvitacionRepository codigoRepo, BarberoRepository barberoRepo,
                                 HorarioBarberoRepository horarioRepo, BloqueoHorarioRepository bloqueoRepo,
                                 TurnoRepository turnoRepo, ServicioRepository servicioRepo,
                                 GaleriaRepository galeriaRepo, NegocioConfigRepository negocioConfigRepo,
-                                VisitaRepository visitaRepo, PropiedadRepository propiedadRepo) {
+                                VisitaRepository visitaRepo, PropiedadRepository propiedadRepo,
+                                PasswordEncoder encoder) {
         this.tenantRepo = tenantRepo;
         this.usuarioRepo = usuarioRepo;
         this.codigoRepo = codigoRepo;
@@ -53,6 +56,7 @@ public class SuperAdminController {
         this.negocioConfigRepo = negocioConfigRepo;
         this.visitaRepo = visitaRepo;
         this.propiedadRepo = propiedadRepo;
+        this.encoder = encoder;
     }
 
     @GetMapping("/resumen")
@@ -171,6 +175,39 @@ public class SuperAdminController {
         tenantRepo.deleteById(slug);
 
         return ResponseEntity.ok(Map.of("eliminado", slug));
+    }
+
+    @PatchMapping("/tenants/{slug}/reset-password")
+    public ResponseEntity<?> resetPassword(@PathVariable String slug) {
+        var adminOpt = usuarioRepo.findByTenantIdAndActivoTrue(slug).stream()
+            .filter(u -> "ADMIN".equals(u.getRol())).findFirst();
+        if (adminOpt.isEmpty()) return ResponseEntity.notFound().build();
+        var admin = adminOpt.get();
+        String nuevaPass = generarPasswordLegible();
+        admin.setPassword(encoder.encode(nuevaPass));
+        usuarioRepo.save(admin);
+        return ResponseEntity.ok(Map.of(
+            "username", admin.getUsername(),
+            "password", nuevaPass
+        ));
+    }
+
+    private String generarPasswordLegible() {
+        // 4 letras mayúsculas + 4 dígitos + símbolo, mezcla aleatoria
+        String letras = "ABCDEFGHJKLMNPQRSTUVWXYZ";
+        String digitos = "23456789";
+        String simbolos = "@#$!";
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < 4; i++) sb.append(letras.charAt(RND.nextInt(letras.length())));
+        for (int i = 0; i < 4; i++) sb.append(digitos.charAt(RND.nextInt(digitos.length())));
+        sb.append(simbolos.charAt(RND.nextInt(simbolos.length())));
+        // mezclar
+        List<Character> chars = new ArrayList<>();
+        for (char c : sb.toString().toCharArray()) chars.add(c);
+        Collections.shuffle(chars, RND);
+        StringBuilder result = new StringBuilder();
+        for (char c : chars) result.append(c);
+        return result.toString();
     }
 
     private String generarCodigo() {

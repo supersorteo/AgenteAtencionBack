@@ -1,10 +1,7 @@
 package com.agente.atencion.controller;
 
 import com.agente.atencion.security.UsuarioAutenticado;
-import com.cloudinary.Cloudinary;
-import com.cloudinary.utils.ObjectUtils;
-import jakarta.annotation.PostConstruct;
-import org.springframework.beans.factory.annotation.Value;
+import com.agente.atencion.service.CloudinaryService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
@@ -25,22 +22,10 @@ public class UploadController {
     private static final String UPLOAD_DIR = "./uploads/";
     private static final long MAX_SIZE = 5 * 1024 * 1024;
 
-    @Value("${cloudinary.cloud-name:}") private String cloudName;
-    @Value("${cloudinary.api-key:}")    private String apiKey;
-    @Value("${cloudinary.api-secret:}") private String apiSecret;
+    private final CloudinaryService cloudinaryService;
 
-    private Cloudinary cloudinary;
-
-    @PostConstruct
-    void init() {
-        if (!cloudName.isBlank() && !apiKey.isBlank() && !apiSecret.isBlank()) {
-            cloudinary = new Cloudinary(ObjectUtils.asMap(
-                "cloud_name", cloudName,
-                "api_key",    apiKey,
-                "api_secret", apiSecret,
-                "secure",     true
-            ));
-        }
+    public UploadController(CloudinaryService cloudinaryService) {
+        this.cloudinaryService = cloudinaryService;
     }
 
     @PostMapping("/{tenantId}")
@@ -63,23 +48,15 @@ public class UploadController {
         }
 
         try {
-            if (cloudinary != null) {
-                return uploadCloudinary(file, tenantId);
+            if (cloudinaryService.isConfigured()) {
+                String url = cloudinaryService.upload(file.getBytes(), tenantId);
+                return ResponseEntity.ok(Map.of("url", url));
             }
             return uploadLocal(file, tenantId, contentType);
         } catch (IOException e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(Map.of("error", "Error al guardar el archivo"));
         }
-    }
-
-    @SuppressWarnings("unchecked")
-    private ResponseEntity<?> uploadCloudinary(MultipartFile file, String tenantId) throws IOException {
-        Map<String, Object> result = cloudinary.uploader().upload(
-            file.getBytes(),
-            ObjectUtils.asMap("folder", tenantId)
-        );
-        return ResponseEntity.ok(Map.of("url", result.get("secure_url")));
     }
 
     private ResponseEntity<?> uploadLocal(MultipartFile file, String tenantId, String contentType) throws IOException {

@@ -7,4 +7,5 @@ import java.util.List;
 public interface CategoriaServicioRepository extends JpaRepository<CategoriaServicio, Long> {
     List<CategoriaServicio> findByTenantIdAndActivoTrueOrderByOrdenAsc(String tenantId);
     boolean existsByTenantId(String tenantId);
+    void deleteByTenantId(String tenantId);
 }

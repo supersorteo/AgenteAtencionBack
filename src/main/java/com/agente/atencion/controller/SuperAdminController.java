@@ -5,6 +5,7 @@ import com.agente.atencion.entity.Barbero;
 import com.agente.atencion.entity.CodigoInvitacion;
 import com.agente.atencion.entity.Tenant;
 import com.agente.atencion.repository.*;
+import com.agente.atencion.service.CloudinaryService;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.http.ResponseEntity;
 import org.springframework.transaction.annotation.Transactional;
@@ -31,19 +32,22 @@ public class SuperAdminController {
     private final BloqueoHorarioRepository bloqueoRepo;
     private final TurnoRepository turnoRepo;
     private final ServicioRepository servicioRepo;
+    private final CategoriaServicioRepository categoriaServicioRepo;
     private final GaleriaRepository galeriaRepo;
     private final NegocioConfigRepository negocioConfigRepo;
     private final VisitaRepository visitaRepo;
     private final PropiedadRepository propiedadRepo;
+    private final CloudinaryService cloudinaryService;
     private final PasswordEncoder encoder;
 
     public SuperAdminController(TenantRepository tenantRepo, UsuarioRepository usuarioRepo,
                                 CodigoInvitacionRepository codigoRepo, BarberoRepository barberoRepo,
                                 HorarioBarberoRepository horarioRepo, BloqueoHorarioRepository bloqueoRepo,
                                 TurnoRepository turnoRepo, ServicioRepository servicioRepo,
+                                CategoriaServicioRepository categoriaServicioRepo,
                                 GaleriaRepository galeriaRepo, NegocioConfigRepository negocioConfigRepo,
                                 VisitaRepository visitaRepo, PropiedadRepository propiedadRepo,
-                                PasswordEncoder encoder) {
+                                CloudinaryService cloudinaryService, PasswordEncoder encoder) {
         this.tenantRepo = tenantRepo;
         this.usuarioRepo = usuarioRepo;
         this.codigoRepo = codigoRepo;
@@ -52,10 +56,12 @@ public class SuperAdminController {
         this.bloqueoRepo = bloqueoRepo;
         this.turnoRepo = turnoRepo;
         this.servicioRepo = servicioRepo;
+        this.categoriaServicioRepo = categoriaServicioRepo;
         this.galeriaRepo = galeriaRepo;
         this.negocioConfigRepo = negocioConfigRepo;
         this.visitaRepo = visitaRepo;
         this.propiedadRepo = propiedadRepo;
+        this.cloudinaryService = cloudinaryService;
         this.encoder = encoder;
     }
 
@@ -169,10 +175,13 @@ public class SuperAdminController {
         propiedadRepo.deleteByTenantId(slug);
         barberoRepo.deleteAll(barberoRepo.findByTenantId(slug));
         servicioRepo.deleteByTenantId(slug);
+        categoriaServicioRepo.deleteByTenantId(slug);
         galeriaRepo.deleteByTenantId(slug);
         usuarioRepo.deleteByTenantId(slug);
         negocioConfigRepo.deleteById(slug);
         tenantRepo.deleteById(slug);
+
+        cloudinaryService.deleteTenantFolder(slug);
 
         return ResponseEntity.ok(Map.of("eliminado", slug));
     }

@@ -17,6 +17,8 @@ public interface TurnoRepository extends JpaRepository<Turno, Long> {
     List<Turno> findByTenantIdAndBarberoIdAndFecha(String tenantId, Long barberoId, LocalDate fecha);
     List<Turno> findByTenantIdAndPacienteOrderByFechaDescHoraDesc(String tenantId, String paciente);
 
+    List<Turno> findByTenantIdAndFechaBetweenOrderByFechaAscHoraAsc(String tenantId, LocalDate desde, LocalDate hasta);
+
     @org.springframework.data.jpa.repository.Query(
         "SELECT t.paciente, t.telefono, COUNT(t), MAX(t.fecha) FROM Turno t " +
         "WHERE t.tenantId = :tenantId AND t.estado <> 'CANCELADO' " +

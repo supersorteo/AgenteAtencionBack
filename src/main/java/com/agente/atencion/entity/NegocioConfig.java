@@ -31,6 +31,12 @@ public class NegocioConfig {
     @Column(name = "time_zone")
     private String timeZone;
 
+    // Personalización visual por tenant
+    private String colorPrimario;   // hex: "#c9a84c"
+    private String logoUrl;         // Cloudinary URL del logo
+    private String moneda;          // "UYU", "ARS", "USD", "CLP", "COP", "MXN", "PEN"
+    private String paisCodigo;      // "UY", "AR", "US" — prefijo para WhatsApp
+
     // Horarios
     private String horario1;
     private String horario2;

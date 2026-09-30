@@ -44,6 +44,7 @@ public class SecurityConfig {
                     "/api/v1/galeria/**",
                     "/api/v1/disponibilidad/**",
                     "/api/v1/config/**",
+                    "/api/v1/categorias/**",
                     "/uploads/**").permitAll()
                 // Reserva desde el landing sin auth (visitantes pueden reservar)
                 .requestMatchers(HttpMethod.POST, "/api/v1/turnos/**").permitAll()

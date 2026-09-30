@@ -6,6 +6,8 @@ import com.agente.atencion.entity.CodigoInvitacion;
 import com.agente.atencion.entity.NegocioConfig;
 import com.agente.atencion.entity.Tenant;
 import com.agente.atencion.entity.Usuario;
+import com.agente.atencion.entity.CategoriaServicio;
+import com.agente.atencion.repository.CategoriaServicioRepository;
 import com.agente.atencion.repository.CodigoInvitacionRepository;
 import com.agente.atencion.repository.NegocioConfigRepository;
 import com.agente.atencion.repository.TenantRepository;
@@ -27,15 +29,18 @@ public class RegistroService {
     private final UsuarioRepository usuarioRepo;
     private final PasswordEncoder encoder;
     private final CodigoInvitacionRepository codigoRepo;
+    private final CategoriaServicioRepository categoriaRepo;
 
     public RegistroService(TenantRepository tenantRepo, NegocioConfigRepository configRepo,
                            UsuarioRepository usuarioRepo, PasswordEncoder encoder,
-                           CodigoInvitacionRepository codigoRepo) {
+                           CodigoInvitacionRepository codigoRepo,
+                           CategoriaServicioRepository categoriaRepo) {
         this.tenantRepo = tenantRepo;
         this.configRepo = configRepo;
         this.usuarioRepo = usuarioRepo;
         this.encoder = encoder;
         this.codigoRepo = codigoRepo;
+        this.categoriaRepo = categoriaRepo;
     }
 
     @Transactional
@@ -80,6 +85,8 @@ public class RegistroService {
         admin.setActivo(true);
         usuarioRepo.save(admin);
 
+        crearCategoriasDefecto(slug);
+
         codigoEntidad.setUsado(true);
         codigoEntidad.setUsadoPorUsername(req.username());
         codigoEntidad.setUsadoAt(LocalDateTime.now());
@@ -87,6 +94,24 @@ public class RegistroService {
 
         return new RegistroResponse(slug, req.username(), "/" + slug + "/admin",
             "¡Bienvenido! Tu barbería está lista.");
+    }
+
+    private void crearCategoriasDefecto(String tenantId) {
+        String[][] defaults = {
+            {"Corte",      "✂️", "1"},
+            {"Barba",      "🪒", "2"},
+            {"Combo",      "💈", "3"},
+            {"Coloración", "🎨", "4"}
+        };
+        for (String[] d : defaults) {
+            CategoriaServicio cat = new CategoriaServicio();
+            cat.setTenantId(tenantId);
+            cat.setNombre(d[0]);
+            cat.setEmoji(d[1]);
+            cat.setOrden(Integer.parseInt(d[2]));
+            cat.setActivo(true);
+            categoriaRepo.save(cat);
+        }
     }
 
     private CodigoInvitacion resolverCodigo(String codigoStr) {

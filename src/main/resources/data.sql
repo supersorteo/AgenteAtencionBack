@@ -133,6 +133,16 @@ SELECT * FROM (VALUES
 WHERE NOT EXISTS (SELECT 1 FROM servicios WHERE tenant_id = 'barberia-demo');
 
 
+-- Categorías de servicios para barberia-demo
+INSERT INTO categoria_servicio (tenant_id, nombre, emoji, orden, activo)
+SELECT * FROM (VALUES
+    ('barberia-demo', 'Corte',      '✂️', 1, true),
+    ('barberia-demo', 'Barba',      '🪒', 2, true),
+    ('barberia-demo', 'Combo',      '💈', 3, true),
+    ('barberia-demo', 'Coloración', '🎨', 4, true)
+) AS v(tenant_id, nombre, emoji, orden, activo)
+WHERE NOT EXISTS (SELECT 1 FROM categoria_servicio WHERE tenant_id = 'barberia-demo');
+
 -- Galería demo para barberia-demo
 INSERT INTO galeria (tenant_id, titulo, descripcion, imagen_url, categoria, activo)
 SELECT * FROM (VALUES

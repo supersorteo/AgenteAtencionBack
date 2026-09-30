@@ -13,6 +13,7 @@ public class CategoriaServicio {
     private String tenantId;
     private String nombre;
     private String emoji;
+    private String imagenUrl;
     private int orden;
     private boolean activo = true;
 }

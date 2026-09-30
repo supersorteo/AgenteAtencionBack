@@ -43,6 +43,7 @@ public class CategoriaServicioController {
             .map(c -> {
                 c.setNombre(datos.getNombre());
                 c.setEmoji(datos.getEmoji());
+                c.setImagenUrl(datos.getImagenUrl());
                 c.setOrden(datos.getOrden());
                 return ResponseEntity.ok(repo.save(c));
             })

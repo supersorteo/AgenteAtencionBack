@@ -13,4 +13,6 @@ public class Tenant {
     @Column(columnDefinition = "TEXT")
     private String contexto;
     private boolean activo = true;
+    @Column(name = "tour_visto")
+    private boolean tourVisto = false;
 }

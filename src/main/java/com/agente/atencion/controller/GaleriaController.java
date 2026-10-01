@@ -22,10 +22,13 @@ public class GaleriaController {
     }
 
     @PostMapping("/{tenantId}")
-    public ResponseEntity<Galeria> crear(@PathVariable String tenantId,
-                                          @RequestBody Galeria galeria,
-                                          Authentication auth) {
+    public ResponseEntity<?> crear(@PathVariable String tenantId,
+                                   @RequestBody Galeria galeria,
+                                   Authentication auth) {
         if (!isAdmin(auth, tenantId)) return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        long total = galeriaRepository.countByTenantIdAndActivoTrue(tenantId);
+        if (total >= 10) return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(java.util.Map.of("error", "Límite de 10 imágenes por galería alcanzado."));
         galeria.setTenantId(tenantId);
         return ResponseEntity.ok(galeriaRepository.save(galeria));
     }

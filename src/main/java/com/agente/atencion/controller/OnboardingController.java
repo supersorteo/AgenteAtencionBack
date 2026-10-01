@@ -29,7 +29,7 @@ public class OnboardingController {
             boolean tieneServicios = !servicioRepository.findByTenantIdAndActivoTrue(tenantId).isEmpty();
             boolean tieneBarberos = !barberoRepository.findByTenantIdAndActivoTrue(tenantId).isEmpty();
             return ResponseEntity.ok(new OnboardingStatusDTO(
-                tenant.isTourVisto(), configCompleta, tieneServicios, tieneBarberos
+                Boolean.TRUE.equals(tenant.getTourVisto()), configCompleta, tieneServicios, tieneBarberos
             ));
         }).orElse(ResponseEntity.notFound().build());
     }

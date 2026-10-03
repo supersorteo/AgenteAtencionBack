@@ -187,12 +187,17 @@ public class SuperAdminController {
     }
 
     @PatchMapping("/tenants/{slug}/reset-password")
-    public ResponseEntity<?> resetPassword(@PathVariable String slug) {
+    public ResponseEntity<?> resetPassword(
+            @PathVariable String slug,
+            @RequestBody(required = false) Map<String, String> body) {
         var adminOpt = usuarioRepo.findByTenantIdAndActivoTrue(slug).stream()
             .filter(u -> "ADMIN".equals(u.getRol())).findFirst();
         if (adminOpt.isEmpty()) return ResponseEntity.notFound().build();
         var admin = adminOpt.get();
-        String nuevaPass = generarPasswordLegible();
+        String customPass = body != null ? body.get("password") : null;
+        String nuevaPass = (customPass != null && !customPass.isBlank())
+            ? customPass
+            : generarPasswordLegible();
         admin.setPassword(encoder.encode(nuevaPass));
         usuarioRepo.save(admin);
         return ResponseEntity.ok(Map.of(

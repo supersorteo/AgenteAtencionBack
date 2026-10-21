@@ -164,4 +164,67 @@ public class DashboardController {
             "serieDiaria", serieDiaria
         ));
     }
+
+    @GetMapping("/{tenantId}/mis-stats")
+    public ResponseEntity<?> misStats(
+            @PathVariable String tenantId,
+            @RequestParam String desde,
+            @RequestParam String hasta,
+            Authentication auth) {
+        if (!(auth.getPrincipal() instanceof UsuarioAutenticado u)
+                || !tenantId.equals(u.tenantId())
+                || !"BARBERO".equals(u.rol())
+                || u.barberoId() == null) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
+
+        LocalDate fechaDesde = LocalDate.parse(desde);
+        LocalDate fechaHasta = LocalDate.parse(hasta);
+        List<Turno> todos = turnoRepository.findByTenantIdAndFechaBetweenOrderByFechaAscHoraAsc(tenantId, fechaDesde, fechaHasta);
+        List<Turno> turnos = todos.stream()
+            .filter(t -> u.barberoId().equals(t.getBarberoId()))
+            .toList();
+
+        long total = turnos.size();
+        long completados = turnos.stream().filter(t -> "COMPLETADO".equals(t.getEstado())).count();
+        long cancelados  = turnos.stream().filter(t -> "CANCELADO".equals(t.getEstado())).count();
+        long reservados  = turnos.stream().filter(t -> "RESERVADO".equals(t.getEstado())).count();
+
+        var preciosPorNombre = servicioRepository.findByTenantIdAndActivoTrue(tenantId)
+            .stream().collect(Collectors.toMap(s -> s.getNombre(), s -> s.getPrecio(), (a, b) -> a));
+
+        double ingresoEstimado = turnos.stream()
+            .filter(t -> !"CANCELADO".equals(t.getEstado()) && t.getServicio() != null)
+            .mapToDouble(t -> preciosPorNombre.getOrDefault(t.getServicio(), 0.0))
+            .sum();
+
+        var topServicios = turnos.stream()
+            .filter(t -> t.getServicio() != null && !"CANCELADO".equals(t.getEstado()))
+            .collect(Collectors.groupingBy(Turno::getServicio, Collectors.counting()))
+            .entrySet().stream()
+            .sorted(Map.Entry.<String, Long>comparingByValue().reversed())
+            .limit(5)
+            .map(e -> Map.of("servicio", e.getKey(), "cantidad", e.getValue()))
+            .toList();
+
+        var serieDiaria = new ArrayList<Map<String, Object>>();
+        for (LocalDate d = fechaDesde; !d.isAfter(fechaHasta); d = d.plusDays(1)) {
+            final LocalDate fd = d;
+            long t = turnos.stream().filter(x -> x.getFecha().equals(fd)).count();
+            long c = turnos.stream().filter(x -> x.getFecha().equals(fd) && "COMPLETADO".equals(x.getEstado())).count();
+            if (t > 0) serieDiaria.add(Map.of("fecha", fd.toString(), "total", t, "completados", c));
+        }
+
+        return ResponseEntity.ok(Map.of(
+            "desde", desde,
+            "hasta", hasta,
+            "total", total,
+            "completados", completados,
+            "cancelados", cancelados,
+            "reservados", reservados,
+            "ingresoEstimado", (long) ingresoEstimado,
+            "topServicios", topServicios,
+            "serieDiaria", serieDiaria
+        ));
+    }
 }

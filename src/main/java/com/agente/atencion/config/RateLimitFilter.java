@@ -35,7 +35,7 @@ public class RateLimitFilter extends OncePerRequestFilter {
     @Override
     protected void doFilterInternal(HttpServletRequest req, HttpServletResponse res, FilterChain chain)
             throws ServletException, IOException {
-        String path = req.getRequestURI();
+        String path = req.getServletPath();
         boolean isPublicPost = "POST".equals(req.getMethod()) &&
             (path.contains("/turnos") || path.contains("/chat") || path.contains("/auth/login"));
         if (isPublicPost) {

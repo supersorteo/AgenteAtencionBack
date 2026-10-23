@@ -6,6 +6,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 
 @SpringBootApplication
 @EnableScheduling
+@org.springframework.cache.annotation.EnableCaching
 public class AgenteAtencionApplication {
     public static void main(String[] args) {
         SpringApplication.run(AgenteAtencionApplication.class, args);

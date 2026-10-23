@@ -3,6 +3,7 @@ package com.agente.atencion.controller;
 import com.agente.atencion.dto.ChatRequest;
 import com.agente.atencion.dto.ChatResponse;
 import com.agente.atencion.service.AgenteService;
+import jakarta.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -19,7 +20,7 @@ public class ChatController {
     @Autowired private AgenteService agenteService;
 
     @PostMapping("/chat")
-    public ResponseEntity<ChatResponse> chat(@RequestBody ChatRequest request) {
+    public ResponseEntity<ChatResponse> chat(@RequestBody @Valid ChatRequest request) {
         try {
             String respuesta = agenteService.chat(request.tenantId(), request.sessionId(), request.mensaje());
             return ResponseEntity.ok(new ChatResponse(respuesta));

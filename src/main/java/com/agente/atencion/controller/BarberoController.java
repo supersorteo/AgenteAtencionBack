@@ -5,6 +5,7 @@ import com.agente.atencion.entity.HorarioBarbero;
 import com.agente.atencion.repository.*;
 import com.agente.atencion.security.UsuarioAutenticado;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
@@ -30,6 +31,7 @@ public class BarberoController {
 
     @PostMapping("/{tenantId}")
     @Transactional
+    @CacheEvict(value = "barberos", key = "#tenantId")
     public ResponseEntity<Barbero> crear(@PathVariable String tenantId, @RequestBody Barbero barbero,
                                           Authentication auth) {
         if (!isAdmin(auth, tenantId)) return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
@@ -47,6 +49,7 @@ public class BarberoController {
     }
 
     @PutMapping("/{tenantId}/{id}")
+    @CacheEvict(value = "barberos", key = "#tenantId")
     public ResponseEntity<Barbero> actualizar(@PathVariable String tenantId,
                                                @PathVariable Long id,
                                                @RequestBody Barbero datos,
@@ -85,6 +88,7 @@ public class BarberoController {
 
     @DeleteMapping("/{tenantId}/{id}")
     @Transactional
+    @CacheEvict(value = "barberos", key = "#tenantId")
     public ResponseEntity<Void> eliminar(@PathVariable String tenantId, @PathVariable Long id,
                                           Authentication auth) {
         if (!isAdmin(auth, tenantId)) return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
@@ -103,6 +107,7 @@ public class BarberoController {
 
     // Barbero actualiza su propio perfil (solo foto y especialidad)
     @PatchMapping("/{tenantId}/mi-perfil")
+    @CacheEvict(value = "barberos", key = "#tenantId")
     public ResponseEntity<Barbero> actualizarMiPerfil(@PathVariable String tenantId,
                                                        @RequestBody Barbero datos,
                                                        Authentication auth) {

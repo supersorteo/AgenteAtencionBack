@@ -37,7 +37,10 @@ public class TurnoController {
         if (fecha != null) {
             return ResponseEntity.ok(turnoRepository.findByTenantIdAndFecha(tenantId, LocalDate.parse(fecha)));
         }
-        return ResponseEntity.ok(turnoRepository.findByTenantIdOrderByFechaAscHoraAsc(tenantId));
+        // Sin filtro: ventana de -7 a +90 días para no cargar todo el historial
+        LocalDate hoy = LocalDate.now(tenantClockService.clockFor(tenantId));
+        return ResponseEntity.ok(turnoRepository.findByTenantIdAndFechaBetweenOrderByFechaAscHoraAsc(
+            tenantId, hoy.minusDays(7), hoy.plusDays(90)));
     }
 
     @GetMapping("/{tenantId}/mis-turnos")

@@ -6,7 +6,11 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "turnos")
+@Table(name = "turnos", indexes = {
+    @Index(name = "idx_turnos_tenant_fecha", columnList = "tenantId, fecha"),
+    @Index(name = "idx_turnos_tenant_barbero", columnList = "tenantId, barberoId"),
+    @Index(name = "idx_turnos_tenant_estado", columnList = "tenantId, estado")
+})
 @Data
 public class Turno {
     @Id

@@ -35,8 +35,6 @@ public class SuperAdminController {
     private final CategoriaServicioRepository categoriaServicioRepo;
     private final GaleriaRepository galeriaRepo;
     private final NegocioConfigRepository negocioConfigRepo;
-    private final VisitaRepository visitaRepo;
-    private final PropiedadRepository propiedadRepo;
     private final CloudinaryService cloudinaryService;
     private final PasswordEncoder encoder;
 
@@ -46,7 +44,6 @@ public class SuperAdminController {
                                 TurnoRepository turnoRepo, ServicioRepository servicioRepo,
                                 CategoriaServicioRepository categoriaServicioRepo,
                                 GaleriaRepository galeriaRepo, NegocioConfigRepository negocioConfigRepo,
-                                VisitaRepository visitaRepo, PropiedadRepository propiedadRepo,
                                 CloudinaryService cloudinaryService, PasswordEncoder encoder) {
         this.tenantRepo = tenantRepo;
         this.usuarioRepo = usuarioRepo;
@@ -59,8 +56,6 @@ public class SuperAdminController {
         this.categoriaServicioRepo = categoriaServicioRepo;
         this.galeriaRepo = galeriaRepo;
         this.negocioConfigRepo = negocioConfigRepo;
-        this.visitaRepo = visitaRepo;
-        this.propiedadRepo = propiedadRepo;
         this.cloudinaryService = cloudinaryService;
         this.encoder = encoder;
     }
@@ -171,8 +166,6 @@ public class SuperAdminController {
         // Resto en orden: hijos primero, tenant al final
         bloqueoRepo.deleteByTenantId(slug);
         turnoRepo.deleteByTenantId(slug);
-        visitaRepo.deleteByTenantId(slug);
-        propiedadRepo.deleteByTenantId(slug);
         barberoRepo.deleteAll(barberoRepo.findByTenantId(slug));
         servicioRepo.deleteByTenantId(slug);
         categoriaServicioRepo.deleteByTenantId(slug);

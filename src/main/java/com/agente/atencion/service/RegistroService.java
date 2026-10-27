@@ -19,6 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.text.Normalizer;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Service
@@ -65,6 +66,7 @@ public class RegistroService {
         tenant.setId(slug);
         tenant.setNombre(req.nombreNegocio());
         tenant.setActivo(true);
+        tenant.setFechaRegistro(java.time.LocalDate.now());
         tenant.setContexto("Sos el asistente virtual de " + req.nombreNegocio()
             + ". Ayudás a los clientes con información sobre servicios, precios y reservas de turnos."
             + " Siempre respondé de forma amable, breve y profesional.");
@@ -90,6 +92,12 @@ public class RegistroService {
         codigoEntidad.setUsado(true);
         codigoEntidad.setUsadoPorUsername(req.username());
         codigoEntidad.setUsadoAt(LocalDateTime.now());
+        if (codigoEntidad.getTipo() != null) {
+            LocalDate vencimiento = LocalDate.now().plusMonths(codigoEntidad.getTipo().meses);
+            codigoEntidad.setFechaVencimiento(vencimiento);
+            tenant.setFechaVencimientoSuscripcion(vencimiento);
+            tenantRepo.save(tenant);
+        }
         codigoRepo.save(codigoEntidad);
 
         return new RegistroResponse(slug, req.username(), "/" + slug + "/admin",

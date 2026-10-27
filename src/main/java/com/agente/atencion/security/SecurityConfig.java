@@ -34,6 +34,7 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 // Siempre públicos
                 .requestMatchers(HttpMethod.POST, "/api/registro").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/plan-precios").permitAll()
                 .requestMatchers("/api/auth/**").permitAll()
                 .requestMatchers("/api/superadmin/**").hasRole("SUPER_ADMIN")
                 .requestMatchers("/api/v1/chat/**").permitAll()

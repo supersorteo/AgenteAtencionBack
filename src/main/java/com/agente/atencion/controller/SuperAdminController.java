@@ -1,16 +1,21 @@
 package com.agente.atencion.controller;
 
+import com.agente.atencion.dto.GenerarCodigosRequest;
 import com.agente.atencion.dto.TenantResumen;
 import com.agente.atencion.entity.Barbero;
 import com.agente.atencion.entity.CodigoInvitacion;
+import com.agente.atencion.entity.PlanPrecio;
 import com.agente.atencion.entity.Tenant;
+import com.agente.atencion.entity.TipoCodigo;
 import com.agente.atencion.repository.*;
+import jakarta.validation.Valid;
 import com.agente.atencion.service.CloudinaryService;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.http.ResponseEntity;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
+import java.math.BigDecimal;
 import java.security.SecureRandom;
 import java.time.LocalDateTime;
 import java.util.*;
@@ -27,6 +32,7 @@ public class SuperAdminController {
     private final TenantRepository tenantRepo;
     private final UsuarioRepository usuarioRepo;
     private final CodigoInvitacionRepository codigoRepo;
+    private final PlanPrecioRepository planPrecioRepo;
     private final BarberoRepository barberoRepo;
     private final HorarioBarberoRepository horarioRepo;
     private final BloqueoHorarioRepository bloqueoRepo;
@@ -39,7 +45,8 @@ public class SuperAdminController {
     private final PasswordEncoder encoder;
 
     public SuperAdminController(TenantRepository tenantRepo, UsuarioRepository usuarioRepo,
-                                CodigoInvitacionRepository codigoRepo, BarberoRepository barberoRepo,
+                                CodigoInvitacionRepository codigoRepo, PlanPrecioRepository planPrecioRepo,
+                                BarberoRepository barberoRepo,
                                 HorarioBarberoRepository horarioRepo, BloqueoHorarioRepository bloqueoRepo,
                                 TurnoRepository turnoRepo, ServicioRepository servicioRepo,
                                 CategoriaServicioRepository categoriaServicioRepo,
@@ -48,6 +55,7 @@ public class SuperAdminController {
         this.tenantRepo = tenantRepo;
         this.usuarioRepo = usuarioRepo;
         this.codigoRepo = codigoRepo;
+        this.planPrecioRepo = planPrecioRepo;
         this.barberoRepo = barberoRepo;
         this.horarioRepo = horarioRepo;
         this.bloqueoRepo = bloqueoRepo;
@@ -94,7 +102,9 @@ public class SuperAdminController {
                 t.getId(),
                 t.getNombre(),
                 t.isActivo(),
-                adminByTenant.getOrDefault(t.getId(), "—")
+                adminByTenant.getOrDefault(t.getId(), "—"),
+                t.getFechaRegistro(),
+                t.getFechaVencimientoSuscripcion()
             ))
             .toList();
     }
@@ -115,20 +125,21 @@ public class SuperAdminController {
     }
 
     @PostMapping("/codigos/generar")
-    public ResponseEntity<?> generarCodigos(@RequestBody Map<String, Integer> body) {
-        int cantidad = body.getOrDefault("cantidad", 0);
-        if (cantidad < 1 || cantidad > 50)
-            return ResponseEntity.badRequest().body(Map.of("error", "La cantidad debe estar entre 1 y 50."));
-
+    public ResponseEntity<?> generarCodigos(@RequestBody @Valid GenerarCodigosRequest req) {
         List<Map<String, Object>> generados = new ArrayList<>();
-        for (int i = 0; i < cantidad; i++) {
+        for (int i = 0; i < req.cantidad(); i++) {
             String code;
-            do { code = generarCodigo(); } while (codigoRepo.existsById(code));
+            do { code = generarCodigoPorTipo(req.tipo()); } while (codigoRepo.existsById(code));
             CodigoInvitacion c = new CodigoInvitacion();
             c.setCodigo(code);
+            c.setTipo(req.tipo());
             c.setCreadoAt(LocalDateTime.now());
             codigoRepo.save(c);
-            generados.add(Map.of("codigo", code, "creadoAt", c.getCreadoAt().toString()));
+            generados.add(Map.of(
+                "codigo", code,
+                "tipo", req.tipo().name(),
+                "creadoAt", c.getCreadoAt().toString()
+            ));
         }
         return ResponseEntity.ok(generados);
     }
@@ -139,13 +150,39 @@ public class SuperAdminController {
             .map(c -> {
                 Map<String, Object> m = new LinkedHashMap<>();
                 m.put("codigo", c.getCodigo());
+                m.put("tipo", c.getTipo() != null ? c.getTipo().name() : null);
                 m.put("usado", c.isUsado());
                 m.put("usadoPorUsername", c.getUsadoPorUsername());
                 m.put("usadoAt", c.getUsadoAt() != null ? c.getUsadoAt().toString() : null);
+                m.put("fechaVencimiento", c.getFechaVencimiento() != null ? c.getFechaVencimiento().toString() : null);
                 m.put("creadoAt", c.getCreadoAt().toString());
                 return m;
             })
             .toList();
+    }
+
+    @GetMapping("/plan-precios")
+    public List<PlanPrecio> getPlanPrecios() {
+        return planPrecioRepo.findAll();
+    }
+
+    @PutMapping("/plan-precios/{tipo}")
+    public ResponseEntity<?> updatePlanPrecio(
+            @PathVariable TipoCodigo tipo,
+            @RequestBody Map<String, BigDecimal> body) {
+        PlanPrecio p = planPrecioRepo.findById(tipo)
+            .orElseGet(() -> { PlanPrecio np = new PlanPrecio(); np.setTipo(tipo); return np; });
+        if (body.containsKey("precioUsd")) p.setPrecioUsd(body.get("precioUsd"));
+        if (body.containsKey("precioUyu")) p.setPrecioUyu(body.get("precioUyu"));
+        if (body.containsKey("precioArs")) p.setPrecioArs(body.get("precioArs"));
+        return ResponseEntity.ok(planPrecioRepo.save(p));
+    }
+
+    @DeleteMapping("/codigos/legacy")
+    @Transactional
+    public ResponseEntity<?> eliminarCodigosLegacy() {
+        long eliminados = codigoRepo.deleteByTipoIsNull();
+        return ResponseEntity.ok(Map.of("eliminados", eliminados));
     }
 
     @DeleteMapping("/tenants/{slug}")
@@ -157,6 +194,12 @@ public class SuperAdminController {
 
         if (!tenantRepo.existsById(slug))
             return ResponseEntity.notFound().build();
+
+        // Guardar username del admin antes de eliminar usuarios para limpiar su código
+        String adminUsername = usuarioRepo.findByTenantIdAndActivoTrue(slug).stream()
+            .filter(u -> "ADMIN".equals(u.getRol()))
+            .map(u -> u.getUsername())
+            .findFirst().orElse(null);
 
         // HorarioBarbero no tiene tenantId; se elimina via barberoIds
         List<Long> barberoIds = barberoRepo.findByTenantId(slug)
@@ -173,6 +216,10 @@ public class SuperAdminController {
         usuarioRepo.deleteByTenantId(slug);
         negocioConfigRepo.deleteById(slug);
         tenantRepo.deleteById(slug);
+
+        // Eliminar el código de invitación que usó este tenant
+        if (adminUsername != null)
+            codigoRepo.findByUsadoPorUsername(adminUsername).ifPresent(codigoRepo::delete);
 
         cloudinaryService.deleteTenantFolder(slug);
 
@@ -199,6 +246,32 @@ public class SuperAdminController {
         ));
     }
 
+    record ActualizarSuscripcionRequest(java.time.LocalDate fechaInicio, TipoCodigo tipoPlan) {}
+
+    @PatchMapping("/tenants/{slug}/suscripcion")
+    public ResponseEntity<?> actualizarSuscripcion(
+            @PathVariable String slug,
+            @RequestBody ActualizarSuscripcionRequest req) {
+        if (req.fechaInicio() == null || req.tipoPlan() == null)
+            return ResponseEntity.badRequest().body(Map.of("error", "fechaInicio y tipoPlan son requeridos."));
+        return tenantRepo.findById(slug)
+            .map(t -> {
+                t.setFechaRegistro(req.fechaInicio());
+                java.time.LocalDate vencimiento = req.fechaInicio().plusMonths(req.tipoPlan().meses);
+                t.setFechaVencimientoSuscripcion(vencimiento);
+                tenantRepo.save(t);
+                String adminUsername = usuarioRepo.findByTenantIdAndActivoTrue(slug).stream()
+                    .filter(u -> "ADMIN".equals(u.getRol()))
+                    .map(u -> u.getUsername())
+                    .findFirst().orElse("—");
+                return ResponseEntity.ok(new TenantResumen(
+                    t.getId(), t.getNombre(), t.isActivo(), adminUsername,
+                    t.getFechaRegistro(), t.getFechaVencimientoSuscripcion()
+                ));
+            })
+            .orElse(ResponseEntity.notFound().build());
+    }
+
     private String generarPasswordLegible() {
         // 4 letras mayúsculas + 4 dígitos + símbolo, mezcla aleatoria
         String letras = "ABCDEFGHJKLMNPQRSTUVWXYZ";
@@ -217,9 +290,10 @@ public class SuperAdminController {
         return result.toString();
     }
 
-    private String generarCodigo() {
-        StringBuilder sb = new StringBuilder(10);
-        for (int i = 0; i < 10; i++) sb.append(CHARS.charAt(RND.nextInt(CHARS.length())));
+    private String generarCodigoPorTipo(TipoCodigo tipo) {
+        StringBuilder sb = new StringBuilder(tipo.prefijo).append("-");
+        for (int i = 0; i < tipo.longitudAleatoria; i++)
+            sb.append(CHARS.charAt(RND.nextInt(CHARS.length())));
         return sb.toString();
     }
 }

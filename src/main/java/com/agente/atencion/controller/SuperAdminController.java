@@ -27,6 +27,7 @@ public class SuperAdminController {
 
     private static final String CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
     private static final SecureRandom RND = new SecureRandom();
+    private static final int LONGITUD_CODIGO = 12;
     private static final String DEMO_SLUG = "barberia-demo";
 
     private final TenantRepository tenantRepo;
@@ -219,7 +220,7 @@ public class SuperAdminController {
 
         // Eliminar el código de invitación que usó este tenant
         if (adminUsername != null)
-            codigoRepo.findByUsadoPorUsername(adminUsername).ifPresent(codigoRepo::delete);
+            codigoRepo.deleteAll(codigoRepo.findAllByUsadoPorUsername(adminUsername));
 
         cloudinaryService.deleteTenantFolder(slug);
 
@@ -292,7 +293,7 @@ public class SuperAdminController {
 
     private String generarCodigoPorTipo(TipoCodigo tipo) {
         StringBuilder sb = new StringBuilder(tipo.prefijo).append("-");
-        for (int i = 0; i < tipo.longitudAleatoria; i++)
+        for (int i = 0; i < LONGITUD_CODIGO; i++)
             sb.append(CHARS.charAt(RND.nextInt(CHARS.length())));
         return sb.toString();
     }

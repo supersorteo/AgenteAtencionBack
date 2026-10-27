@@ -9,6 +9,6 @@ public interface CodigoInvitacionRepository extends JpaRepository<CodigoInvitaci
     List<CodigoInvitacion> findAllByOrderByCreadoAtDesc();
     List<CodigoInvitacion> findAllByTipoOrderByCreadoAtDesc(TipoCodigo tipo);
     long countByUsado(boolean usado);
-    java.util.Optional<CodigoInvitacion> findByUsadoPorUsername(String username);
+    java.util.List<CodigoInvitacion> findAllByUsadoPorUsername(String username);
     long deleteByTipoIsNull();
 }

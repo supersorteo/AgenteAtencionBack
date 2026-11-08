@@ -5,11 +5,14 @@ import com.agente.atencion.entity.HorarioBarbero;
 import com.agente.atencion.repository.*;
 import com.agente.atencion.security.AuthUtils;
 import com.agente.atencion.security.UsuarioAutenticado;
+import com.agente.atencion.service.BarberoService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 import java.util.List;
@@ -19,11 +22,13 @@ import java.util.Map;
 @RequestMapping("/api/v1/barberos")
 public class BarberoController {
 
+    private static final Logger log = LoggerFactory.getLogger(BarberoController.class);
     @Autowired private BarberoRepository barberoRepository;
     @Autowired private HorarioBarberoRepository horarioRepository;
     @Autowired private TurnoRepository turnoRepository;
     @Autowired private BloqueoHorarioRepository bloqueoRepository;
     @Autowired private UsuarioRepository usuarioRepository;
+    @Autowired private BarberoService barberoService;
 
     @GetMapping("/{tenantId}")
     public List<Barbero> listar(@PathVariable String tenantId) {
@@ -31,21 +36,14 @@ public class BarberoController {
     }
 
     @PostMapping("/{tenantId}")
-    @Transactional
-    @CacheEvict(value = "barberos", key = "#tenantId")
     public ResponseEntity<Barbero> crear(@PathVariable String tenantId, @RequestBody Barbero barbero,
                                           Authentication auth) {
-        if (!AuthUtils.isAdmin(auth, tenantId)) return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
-        barbero.setTenantId(tenantId);
-        Barbero saved = barberoRepository.save(barbero);
-        for (int dia = 2; dia <= 7; dia++) {
-            HorarioBarbero h = new HorarioBarbero();
-            h.setBarberoId(saved.getId());
-            h.setDiaSemana(dia);
-            h.setHoraInicio("09:00");
-            h.setHoraFin("18:00");
-            horarioRepository.save(h);
+        if (!AuthUtils.isAdmin(auth, tenantId)) {
+            log.warn("FORBIDDEN crear-barbero tenant={}", tenantId);
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
+        Barbero saved = barberoService.crearConHorarios(tenantId, barbero);
+        log.info("barbero-creado tenant={} id={} nombre={}", tenantId, saved.getId(), saved.getNombre());
         return ResponseEntity.ok(saved);
     }
 
@@ -88,22 +86,18 @@ public class BarberoController {
     }
 
     @DeleteMapping("/{tenantId}/{id}")
-    @Transactional
-    @CacheEvict(value = "barberos", key = "#tenantId")
     public ResponseEntity<Void> eliminar(@PathVariable String tenantId, @PathVariable Long id,
                                           Authentication auth) {
-        if (!AuthUtils.isAdmin(auth, tenantId)) return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
-        return barberoRepository.findById(id)
-            .filter(b -> b.getTenantId().equals(tenantId))
-            .map(b -> {
-                turnoRepository.deleteByBarberoId(id);
-                bloqueoRepository.deleteByBarberoId(id);
-                horarioRepository.deleteByBarberoId(id);
-                usuarioRepository.findByBarberoId(id).ifPresent(usuarioRepository::delete);
-                barberoRepository.delete(b);
-                return ResponseEntity.ok().<Void>build();
-            })
-            .orElse(ResponseEntity.notFound().build());
+        if (!AuthUtils.isAdmin(auth, tenantId)) {
+            log.warn("FORBIDDEN eliminar-barbero tenant={} id={}", tenantId, id);
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
+        if (barberoRepository.findById(id).filter(b -> b.getTenantId().equals(tenantId)).isEmpty()) {
+            return ResponseEntity.notFound().build();
+        }
+        log.info("barbero-eliminado tenant={} id={}", tenantId, id);
+        barberoService.eliminarConCascade(tenantId, id);
+        return ResponseEntity.ok().build();
     }
 
     // Barbero actualiza su propio perfil (solo foto y especialidad)
@@ -133,7 +127,6 @@ public class BarberoController {
     }
 
     @PostMapping("/{tenantId}/{id}/horario")
-    @Transactional
     public ResponseEntity<HorarioBarbero> setHorarioDia(@PathVariable String tenantId,
                                                           @PathVariable Long id,
                                                           @RequestBody HorarioBarbero horario,
@@ -141,14 +134,10 @@ public class BarberoController {
         if (!AuthUtils.isAdmin(auth, tenantId)) return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         if (barberoRepository.findById(id).filter(b -> b.getTenantId().equals(tenantId)).isEmpty())
             return ResponseEntity.notFound().build();
-        horario.setBarberoId(id);
-        horarioRepository.findByBarberoIdAndDiaSemana(id, horario.getDiaSemana())
-            .ifPresent(h -> horario.setId(h.getId()));
-        return ResponseEntity.ok(horarioRepository.save(horario));
+        return ResponseEntity.ok(barberoService.guardarHorarioDia(id, horario));
     }
 
     @DeleteMapping("/{tenantId}/{id}/horario/{dia}")
-    @Transactional
     public ResponseEntity<Void> eliminarDia(@PathVariable String tenantId,
                                              @PathVariable Long id,
                                              @PathVariable Integer dia,
@@ -156,7 +145,7 @@ public class BarberoController {
         if (!AuthUtils.isAdmin(auth, tenantId)) return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         if (barberoRepository.findById(id).filter(b -> b.getTenantId().equals(tenantId)).isEmpty())
             return ResponseEntity.notFound().build();
-        horarioRepository.deleteByBarberoIdAndDiaSemana(id, dia);
+        barberoService.eliminarHorarioDia(id, dia);
         return ResponseEntity.ok().build();
     }
 }

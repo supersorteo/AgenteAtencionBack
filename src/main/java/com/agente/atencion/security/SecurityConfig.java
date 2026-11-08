@@ -68,10 +68,10 @@ public class SecurityConfig {
     public CorsConfigurationSource corsSource() {
         CorsConfiguration cfg = new CorsConfiguration();
         String extra = System.getenv().getOrDefault("ALLOWED_ORIGINS", "");
+        // No wildcard en producción — el frontend debe estar en ALLOWED_ORIGINS
         List<String> patterns = new java.util.ArrayList<>(List.of(
             "http://localhost:4200",
-            "http://localhost:3000",
-            "https://*.vercel.app"
+            "http://localhost:3000"
         ));
         if (!extra.isBlank()) {
             for (String o : extra.split(",")) { patterns.add(o.trim()); }

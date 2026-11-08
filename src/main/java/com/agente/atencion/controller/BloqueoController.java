@@ -9,6 +9,8 @@ import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
@@ -16,6 +18,7 @@ import java.util.List;
 @RequestMapping("/api/v1/bloqueos")
 public class BloqueoController {
 
+    private static final Logger log = LoggerFactory.getLogger(BloqueoController.class);
     @Autowired private BloqueoHorarioRepository bloqueoRepository;
 
     @GetMapping("/{tenantId}")
@@ -32,9 +35,14 @@ public class BloqueoController {
     public ResponseEntity<?> crear(@PathVariable String tenantId,
                                     @RequestBody BloqueoHorario bloqueo,
                                     Authentication auth) {
-        if (!AuthUtils.isAdmin(auth, tenantId)) return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        if (!AuthUtils.isAdmin(auth, tenantId)) {
+            log.warn("FORBIDDEN crear-bloqueo tenant={}", tenantId);
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
         bloqueo.setTenantId(tenantId);
-        return ResponseEntity.ok(bloqueoRepository.save(bloqueo));
+        BloqueoHorario saved = bloqueoRepository.save(bloqueo);
+        log.info("bloqueo-creado tenant={} barbero={} fecha={}", tenantId, saved.getBarberoId(), saved.getFecha());
+        return ResponseEntity.ok(saved);
     }
 
     @DeleteMapping("/{tenantId}/{id}")
@@ -42,7 +50,10 @@ public class BloqueoController {
     public ResponseEntity<Void> eliminar(@PathVariable String tenantId,
                                           @PathVariable Long id,
                                           Authentication auth) {
-        if (!AuthUtils.isAdmin(auth, tenantId)) return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        if (!AuthUtils.isAdmin(auth, tenantId)) {
+            log.warn("FORBIDDEN eliminar-bloqueo tenant={} id={}", tenantId, id);
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
         return bloqueoRepository.findById(id)
             .filter(b -> b.getTenantId().equals(tenantId))
             .map(b -> {

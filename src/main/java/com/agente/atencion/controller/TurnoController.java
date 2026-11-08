@@ -13,6 +13,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
 import java.util.List;
@@ -22,6 +24,7 @@ import java.util.Map;
 @RequestMapping("/api/v1/turnos")
 public class TurnoController {
 
+    private static final Logger log = LoggerFactory.getLogger(TurnoController.class);
     @Autowired private TurnoRepository turnoRepository;
     @Autowired private BarberoRepository barberoRepository;
     @Autowired private DisponibilidadService disponibilidadService;
@@ -34,6 +37,7 @@ public class TurnoController {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
         if (!"ADMIN".equals(usuario.rol()) || !tenantId.equals(usuario.tenantId())) {
+            log.warn("FORBIDDEN listar-turnos tenant={} usuario={}", tenantId, usuario.username());
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
         if (fecha != null) {
@@ -65,6 +69,7 @@ public class TurnoController {
     @Transactional
     @CacheEvict(value = "disponibilidad", allEntries = true)
     public ResponseEntity<?> crear(@PathVariable String tenantId, @RequestBody TurnoCrearRequest request) {
+        log.info("turno-crear tenant={} barbero={} servicio={} fecha={}", tenantId, request.barberoId(), request.servicio(), request.fecha());
         if (request.fecha() == null || request.fecha().isBefore(LocalDate.now(tenantClockService.clockFor(tenantId)))) {
             return ResponseEntity.badRequest().body(Map.of("error", "No se pueden crear reservas en fechas pasadas."));
         }
@@ -86,6 +91,7 @@ public class TurnoController {
             String horaFin = disponibilidadService.calcularHoraFin(turno.getHora(), duracion);
             turno.setHoraFin(horaFin);
             if (!disponibilidadService.validar(turno.getBarberoId(), turno.getFecha(), turno.getHora(), horaFin)) {
+                log.warn("CONFLICT turno-crear tenant={} barbero={} fecha={} hora={}", tenantId, turno.getBarberoId(), turno.getFecha(), turno.getHora());
                 return ResponseEntity.status(HttpStatus.CONFLICT)
                     .body(Map.of("error", "El horario ya no está disponible. Por favor elegí otro."));
             }
@@ -101,6 +107,7 @@ public class TurnoController {
                                         @RequestBody Map<String, Long> body,
                                         Authentication auth) {
         if (auth == null || !(auth.getPrincipal() instanceof UsuarioAutenticado u) || !"ADMIN".equals(u.rol())) {
+            log.warn("FORBIDDEN reasignar-turno tenant={} id={}", tenantId, id);
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
         if (!tenantId.equals(u.tenantId())) return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
@@ -135,11 +142,12 @@ public class TurnoController {
                                        Authentication auth) {
         if (auth == null || !(auth.getPrincipal() instanceof UsuarioAutenticado u)
                 || !"ADMIN".equals(u.rol()) || !tenantId.equals(u.tenantId())) {
+            log.warn("FORBIDDEN eliminar-turno tenant={} id={}", tenantId, id);
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
         return turnoRepository.findById(id)
             .filter(t -> t.getTenantId().equals(tenantId))
-            .map(t -> { turnoRepository.delete(t); return ResponseEntity.ok().build(); })
+            .map(t -> { turnoRepository.delete(t); log.info("turno-eliminado tenant={} id={}", tenantId, id); return ResponseEntity.ok().build(); })
             .orElse(ResponseEntity.notFound().build());
     }
 

@@ -69,7 +69,8 @@ public class TurnoController {
     @Transactional
     @CacheEvict(value = "disponibilidad", allEntries = true)
     public ResponseEntity<?> crear(@PathVariable String tenantId, @RequestBody TurnoCrearRequest request) {
-        log.info("turno-crear tenant={} barbero={} servicio={} fecha={}", tenantId, request.barberoId(), request.servicio(), request.fecha());
+        log.info("turno-crear tenant={} barbero={} servicio={} fecha={}", tenantId, request.barberoId(),
+            request.servicio() != null ? request.servicio().replaceAll("[\r\n\t]", "_") : null, request.fecha());
         if (request.fecha() == null || request.fecha().isBefore(LocalDate.now(tenantClockService.clockFor(tenantId)))) {
             return ResponseEntity.badRequest().body(Map.of("error", "No se pueden crear reservas en fechas pasadas."));
         }

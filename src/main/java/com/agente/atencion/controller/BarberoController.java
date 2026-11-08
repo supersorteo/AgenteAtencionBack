@@ -1,8 +1,9 @@
-package com.agente.atencion.controller;
+﻿package com.agente.atencion.controller;
 
 import com.agente.atencion.entity.Barbero;
 import com.agente.atencion.entity.HorarioBarbero;
 import com.agente.atencion.repository.*;
+import com.agente.atencion.security.AuthUtils;
 import com.agente.atencion.security.UsuarioAutenticado;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.CacheEvict;
@@ -34,7 +35,7 @@ public class BarberoController {
     @CacheEvict(value = "barberos", key = "#tenantId")
     public ResponseEntity<Barbero> crear(@PathVariable String tenantId, @RequestBody Barbero barbero,
                                           Authentication auth) {
-        if (!isAdmin(auth, tenantId)) return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        if (!AuthUtils.isAdmin(auth, tenantId)) return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         barbero.setTenantId(tenantId);
         Barbero saved = barberoRepository.save(barbero);
         for (int dia = 2; dia <= 7; dia++) {
@@ -54,7 +55,7 @@ public class BarberoController {
                                                @PathVariable Long id,
                                                @RequestBody Barbero datos,
                                                Authentication auth) {
-        if (!isAdmin(auth, tenantId)) return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        if (!AuthUtils.isAdmin(auth, tenantId)) return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         return barberoRepository.findById(id)
             .filter(b -> b.getTenantId().equals(tenantId))
             .map(b -> {
@@ -71,7 +72,7 @@ public class BarberoController {
     public ResponseEntity<Map<String, Object>> impacto(@PathVariable String tenantId,
                                                         @PathVariable Long id,
                                                         Authentication auth) {
-        if (!isAdmin(auth, tenantId)) return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        if (!AuthUtils.isAdmin(auth, tenantId)) return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         return barberoRepository.findById(id)
             .filter(b -> b.getTenantId().equals(tenantId))
             .map(b -> {
@@ -91,7 +92,7 @@ public class BarberoController {
     @CacheEvict(value = "barberos", key = "#tenantId")
     public ResponseEntity<Void> eliminar(@PathVariable String tenantId, @PathVariable Long id,
                                           Authentication auth) {
-        if (!isAdmin(auth, tenantId)) return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        if (!AuthUtils.isAdmin(auth, tenantId)) return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         return barberoRepository.findById(id)
             .filter(b -> b.getTenantId().equals(tenantId))
             .map(b -> {
@@ -137,7 +138,7 @@ public class BarberoController {
                                                           @PathVariable Long id,
                                                           @RequestBody HorarioBarbero horario,
                                                           Authentication auth) {
-        if (!isAdmin(auth, tenantId)) return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        if (!AuthUtils.isAdmin(auth, tenantId)) return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         if (barberoRepository.findById(id).filter(b -> b.getTenantId().equals(tenantId)).isEmpty())
             return ResponseEntity.notFound().build();
         horario.setBarberoId(id);
@@ -152,17 +153,10 @@ public class BarberoController {
                                              @PathVariable Long id,
                                              @PathVariable Integer dia,
                                              Authentication auth) {
-        if (!isAdmin(auth, tenantId)) return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        if (!AuthUtils.isAdmin(auth, tenantId)) return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         if (barberoRepository.findById(id).filter(b -> b.getTenantId().equals(tenantId)).isEmpty())
             return ResponseEntity.notFound().build();
         horarioRepository.deleteByBarberoIdAndDiaSemana(id, dia);
         return ResponseEntity.ok().build();
-    }
-
-    private boolean isAdmin(Authentication auth, String tenantId) {
-        return auth != null
-            && auth.getPrincipal() instanceof UsuarioAutenticado u
-            && "ADMIN".equals(u.rol())
-            && tenantId.equals(u.tenantId());
     }
 }

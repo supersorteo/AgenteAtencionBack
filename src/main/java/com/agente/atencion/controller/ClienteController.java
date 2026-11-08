@@ -1,7 +1,8 @@
-package com.agente.atencion.controller;
+﻿package com.agente.atencion.controller;
 
 import com.agente.atencion.entity.Turno;
 import com.agente.atencion.repository.TurnoRepository;
+import com.agente.atencion.security.AuthUtils;
 import com.agente.atencion.security.UsuarioAutenticado;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -20,7 +21,7 @@ public class ClienteController {
 
     @GetMapping("/{tenantId}")
     public ResponseEntity<?> listar(@PathVariable String tenantId, Authentication auth) {
-        if (!esAdmin(auth, tenantId)) return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        if (!AuthUtils.isAdmin(auth, tenantId)) return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
 
         List<Map<String, Object>> clientes = turnoRepository.findClientesSummary(tenantId)
             .stream()
@@ -39,15 +40,8 @@ public class ClienteController {
     public ResponseEntity<?> historial(@PathVariable String tenantId,
                                         @PathVariable String nombre,
                                         Authentication auth) {
-        if (!esAdmin(auth, tenantId)) return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        if (!AuthUtils.isAdmin(auth, tenantId)) return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         List<Turno> turnos = turnoRepository.findByTenantIdAndPacienteOrderByFechaDescHoraDesc(tenantId, nombre);
         return ResponseEntity.ok(turnos);
-    }
-
-    private boolean esAdmin(Authentication auth, String tenantId) {
-        return auth != null
-            && auth.getPrincipal() instanceof UsuarioAutenticado u
-            && "ADMIN".equals(u.rol())
-            && tenantId.equals(u.tenantId());
     }
 }

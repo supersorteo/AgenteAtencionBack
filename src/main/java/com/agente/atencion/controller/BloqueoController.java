@@ -1,7 +1,8 @@
-package com.agente.atencion.controller;
+﻿package com.agente.atencion.controller;
 
 import com.agente.atencion.entity.BloqueoHorario;
 import com.agente.atencion.repository.BloqueoHorarioRepository;
+import com.agente.atencion.security.AuthUtils;
 import com.agente.atencion.security.UsuarioAutenticado;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.CacheEvict;
@@ -31,7 +32,7 @@ public class BloqueoController {
     public ResponseEntity<?> crear(@PathVariable String tenantId,
                                     @RequestBody BloqueoHorario bloqueo,
                                     Authentication auth) {
-        if (!isAdmin(auth, tenantId)) return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        if (!AuthUtils.isAdmin(auth, tenantId)) return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         bloqueo.setTenantId(tenantId);
         return ResponseEntity.ok(bloqueoRepository.save(bloqueo));
     }
@@ -41,7 +42,7 @@ public class BloqueoController {
     public ResponseEntity<Void> eliminar(@PathVariable String tenantId,
                                           @PathVariable Long id,
                                           Authentication auth) {
-        if (!isAdmin(auth, tenantId)) return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        if (!AuthUtils.isAdmin(auth, tenantId)) return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         return bloqueoRepository.findById(id)
             .filter(b -> b.getTenantId().equals(tenantId))
             .map(b -> {
@@ -85,12 +86,5 @@ public class BloqueoController {
             .filter(b -> b.getTenantId().equals(tenantId) && b.getBarberoId().equals(u.barberoId()))
             .map(b -> { bloqueoRepository.delete(b); return ResponseEntity.ok().<Void>build(); })
             .orElse(ResponseEntity.notFound().build());
-    }
-
-    private boolean isAdmin(Authentication auth, String tenantId) {
-        return auth != null
-            && auth.getPrincipal() instanceof UsuarioAutenticado u
-            && "ADMIN".equals(u.rol())
-            && tenantId.equals(u.tenantId());
     }
 }

@@ -1,7 +1,8 @@
-package com.agente.atencion.controller;
+﻿package com.agente.atencion.controller;
 
 import com.agente.atencion.entity.Galeria;
 import com.agente.atencion.repository.GaleriaRepository;
+import com.agente.atencion.security.AuthUtils;
 import com.agente.atencion.security.UsuarioAutenticado;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -25,7 +26,7 @@ public class GaleriaController {
     public ResponseEntity<?> crear(@PathVariable String tenantId,
                                    @RequestBody Galeria galeria,
                                    Authentication auth) {
-        if (!isAdmin(auth, tenantId)) return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        if (!AuthUtils.isAdmin(auth, tenantId)) return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         long total = galeriaRepository.countByTenantIdAndActivoTrue(tenantId);
         if (total >= 10) return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(java.util.Map.of("error", "Límite de 10 imágenes por galería alcanzado."));
@@ -38,7 +39,7 @@ public class GaleriaController {
                                                @PathVariable Long id,
                                                @RequestBody Galeria datos,
                                                Authentication auth) {
-        if (!isAdmin(auth, tenantId)) return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        if (!AuthUtils.isAdmin(auth, tenantId)) return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         return galeriaRepository.findById(id)
             .filter(g -> g.getTenantId().equals(tenantId))
             .map(g -> {
@@ -57,7 +58,7 @@ public class GaleriaController {
     public ResponseEntity<Void> ocultar(@PathVariable String tenantId,
                                          @PathVariable Long id,
                                          Authentication auth) {
-        if (!isAdmin(auth, tenantId)) return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        if (!AuthUtils.isAdmin(auth, tenantId)) return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         return galeriaRepository.findById(id)
             .filter(g -> g.getTenantId().equals(tenantId))
             .map(g -> {
@@ -66,12 +67,5 @@ public class GaleriaController {
                 return ResponseEntity.ok().<Void>build();
             })
             .orElse(ResponseEntity.notFound().build());
-    }
-
-    private boolean isAdmin(Authentication auth, String tenantId) {
-        return auth != null
-            && auth.getPrincipal() instanceof UsuarioAutenticado u
-            && "ADMIN".equals(u.rol())
-            && tenantId.equals(u.tenantId());
     }
 }

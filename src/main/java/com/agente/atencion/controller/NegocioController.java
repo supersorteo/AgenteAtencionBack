@@ -1,7 +1,8 @@
-package com.agente.atencion.controller;
+﻿package com.agente.atencion.controller;
 
 import com.agente.atencion.entity.Tenant;
 import com.agente.atencion.repository.TenantRepository;
+import com.agente.atencion.security.AuthUtils;
 import com.agente.atencion.security.UsuarioAutenticado;
 import com.agente.atencion.service.TenantConfigService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -21,7 +22,7 @@ public class NegocioController {
 
     @GetMapping("/{tenantId}")
     public ResponseEntity<Tenant> getTenant(@PathVariable String tenantId, Authentication auth) {
-        if (!isAdmin(auth, tenantId)) return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        if (!AuthUtils.isAdmin(auth, tenantId)) return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         return tenantRepository.findById(tenantId)
             .map(ResponseEntity::ok)
             .orElse(ResponseEntity.notFound().build());
@@ -31,7 +32,7 @@ public class NegocioController {
     public ResponseEntity<Tenant> actualizarContexto(@PathVariable String tenantId,
                                                       @RequestBody Map<String, String> body,
                                                       Authentication auth) {
-        if (!isAdmin(auth, tenantId)) return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        if (!AuthUtils.isAdmin(auth, tenantId)) return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         String ctx = body.get("contexto");
         if (ctx == null || ctx.isBlank()) return ResponseEntity.badRequest().build();
         return tenantRepository.findById(tenantId).map(t -> {
@@ -40,10 +41,5 @@ public class NegocioController {
             tenantConfigService.evictTenant(tenantId);
             return ResponseEntity.ok(saved);
         }).orElse(ResponseEntity.notFound().build());
-    }
-
-    private boolean isAdmin(Authentication auth, String tenantId) {
-        if (auth == null || !(auth.getPrincipal() instanceof UsuarioAutenticado u)) return false;
-        return "ADMIN".equals(u.rol()) && tenantId.equals(u.tenantId());
     }
 }

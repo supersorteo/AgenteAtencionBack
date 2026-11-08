@@ -53,6 +53,7 @@ public class SecurityConfig {
                 .requestMatchers("/api/v1/dashboard/**").hasRole("ADMIN")
                 // Todo lo demás requiere token
                 .requestMatchers("/api/v1/**").authenticated()
+                .requestMatchers("/actuator/health").permitAll()
                 .requestMatchers("/error").permitAll()
                 .anyRequest().authenticated()
             )

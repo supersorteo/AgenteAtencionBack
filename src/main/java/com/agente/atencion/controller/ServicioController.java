@@ -1,7 +1,8 @@
-package com.agente.atencion.controller;
+﻿package com.agente.atencion.controller;
 
 import com.agente.atencion.entity.Servicio;
 import com.agente.atencion.repository.ServicioRepository;
+import com.agente.atencion.security.AuthUtils;
 import com.agente.atencion.security.UsuarioAutenticado;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.CacheEvict;
@@ -27,7 +28,7 @@ public class ServicioController {
     public ResponseEntity<Servicio> crear(@PathVariable String tenantId,
                                            @RequestBody Servicio servicio,
                                            Authentication auth) {
-        if (!isAdmin(auth, tenantId)) return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        if (!AuthUtils.isAdmin(auth, tenantId)) return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         servicio.setTenantId(tenantId);
         servicio.setActivo(true);
         return ResponseEntity.ok(servicioRepository.save(servicio));
@@ -39,7 +40,7 @@ public class ServicioController {
                                                 @PathVariable Long id,
                                                 @RequestBody Servicio datos,
                                                 Authentication auth) {
-        if (!isAdmin(auth, tenantId)) return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        if (!AuthUtils.isAdmin(auth, tenantId)) return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         return servicioRepository.findById(id)
             .filter(s -> s.getTenantId().equals(tenantId))
             .map(s -> {
@@ -58,7 +59,7 @@ public class ServicioController {
     public ResponseEntity<Void> eliminar(@PathVariable String tenantId,
                                           @PathVariable Long id,
                                           Authentication auth) {
-        if (!isAdmin(auth, tenantId)) return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        if (!AuthUtils.isAdmin(auth, tenantId)) return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         return servicioRepository.findById(id)
             .filter(s -> s.getTenantId().equals(tenantId))
             .map(s -> {
@@ -67,12 +68,5 @@ public class ServicioController {
                 return ResponseEntity.ok().<Void>build();
             })
             .orElse(ResponseEntity.notFound().build());
-    }
-
-    private boolean isAdmin(Authentication auth, String tenantId) {
-        return auth != null
-            && auth.getPrincipal() instanceof UsuarioAutenticado u
-            && "ADMIN".equals(u.rol())
-            && tenantId.equals(u.tenantId());
     }
 }

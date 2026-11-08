@@ -1,8 +1,9 @@
-package com.agente.atencion.controller;
+﻿package com.agente.atencion.controller;
 
 import com.agente.atencion.entity.Usuario;
 import com.agente.atencion.repository.BarberoRepository;
 import com.agente.atencion.repository.UsuarioRepository;
+import com.agente.atencion.security.AuthUtils;
 import com.agente.atencion.security.UsuarioAutenticado;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -29,7 +30,7 @@ public class UsuarioAdminController {
 
     @GetMapping("/{tenantId}/usuarios")
     public ResponseEntity<?> listar(@PathVariable String tenantId, Authentication auth) {
-        if (!esAdmin(auth, tenantId)) return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        if (!AuthUtils.isAdmin(auth, tenantId)) return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         List<Map<String, Object>> result = usuarioRepo.findByTenantIdAndActivoTrue(tenantId).stream()
             .map(u -> Map.<String, Object>of(
                 "id", u.getId(),
@@ -46,7 +47,7 @@ public class UsuarioAdminController {
     public ResponseEntity<?> crear(@PathVariable String tenantId,
                                    @RequestBody Map<String, Object> body,
                                    Authentication auth) {
-        if (!esAdmin(auth, tenantId)) return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        if (!AuthUtils.isAdmin(auth, tenantId)) return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         String username = (String) body.get("username");
         String password = (String) body.get("password");
         Long barberoId = body.get("barberoId") != null ? Long.valueOf(body.get("barberoId").toString()) : null;
@@ -115,7 +116,7 @@ public class UsuarioAdminController {
                                                @PathVariable Long id,
                                                @RequestBody Map<String, String> body,
                                                Authentication auth) {
-        if (!esAdmin(auth, tenantId)) return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        if (!AuthUtils.isAdmin(auth, tenantId)) return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         String newPassword = body.get("password");
         if (newPassword == null || newPassword.isBlank())
             return ResponseEntity.badRequest().body(Map.of("error", "La nueva contraseña no puede estar vacía"));
@@ -137,7 +138,7 @@ public class UsuarioAdminController {
     public ResponseEntity<?> eliminar(@PathVariable String tenantId,
                                        @PathVariable Long id,
                                        Authentication auth) {
-        if (!esAdmin(auth, tenantId)) return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        if (!AuthUtils.isAdmin(auth, tenantId)) return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         return usuarioRepo.findById(id)
             .filter(u -> u.getTenantId().equals(tenantId) && "BARBERO".equals(u.getRol()))
             .map(u -> {
@@ -146,10 +147,5 @@ public class UsuarioAdminController {
                 return ResponseEntity.ok().build();
             })
             .orElse(ResponseEntity.notFound().build());
-    }
-
-    private boolean esAdmin(Authentication auth, String tenantId) {
-        if (auth == null || !(auth.getPrincipal() instanceof UsuarioAutenticado u)) return false;
-        return "ADMIN".equals(u.rol()) && tenantId.equals(u.tenantId());
     }
 }

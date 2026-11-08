@@ -187,11 +187,9 @@ class ReservaAgenteIntegrationTest {
             var agente = executor.submit(() -> { inicio.await(); return reservarDesdeHerramienta(datos()).startsWith("Turno confirmado #"); });
             var formulario = executor.submit(() -> {
                 inicio.await();
-                var turno = new Turno();
-                turno.setPaciente("Otro cliente"); turno.setTelefono("099999999");
-                turno.setServicio("Corte clásico"); turno.setBarberoId(juan.getId());
-                turno.setFecha(FECHA); turno.setHora("10:00");
-                return controller.crear(TENANT, turno).getStatusCode().is2xxSuccessful();
+                var req = new com.agente.atencion.dto.TurnoCrearRequest(
+                    juan.getId(), "Corte clásico", FECHA, "10:00", "Otro cliente", "099999999");
+                return controller.crear(TENANT, req).getStatusCode().is2xxSuccessful();
             });
             inicio.countDown();
             assertThat(List.of(agente.get(15, TimeUnit.SECONDS), formulario.get(15, TimeUnit.SECONDS)))

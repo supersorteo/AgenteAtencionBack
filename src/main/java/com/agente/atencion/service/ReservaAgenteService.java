@@ -75,6 +75,7 @@ public class ReservaAgenteService {
     }
 
     @Transactional
+    @org.springframework.cache.annotation.CacheEvict(value = "disponibilidad", allEntries = true)
     public ReservaConfirmada reservar(String tenantId, String paciente, String telefono,
             String servicio, String nombreBarbero, String fecha, String hora) {
         if (tenantId == null || tenantId.isBlank()) throw new IllegalStateException("Falta el contexto del negocio");
@@ -116,6 +117,12 @@ public class ReservaAgenteService {
             .filter(s -> s.barberoId().equals(barbero.getId()) && s.hora().equals(hora))
             .findFirst().orElseThrow(() -> new IllegalArgumentException(
                 "Ese horario no está disponible para el servicio y barbero elegidos. Consultá consultarDisponibilidad y pedí otra opción; no cambies el barbero automáticamente."));
+
+        // Validar contra la DB en vivo: el cache puede mostrar slots ya tomados por otra reserva reciente
+        if (!disponibilidad.validar(barbero.getId(), dia, slot.hora(), slot.horaFin())) {
+            throw new IllegalArgumentException(
+                "Ese horario acaba de ser reservado por otra persona. Consultá consultarDisponibilidad y elegí otro.");
+        }
 
         Turno turno = new Turno();
         turno.setTenantId(tenantId);

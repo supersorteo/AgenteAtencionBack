@@ -4,6 +4,7 @@ import com.agente.atencion.entity.BloqueoHorario;
 import com.agente.atencion.repository.BloqueoHorarioRepository;
 import com.agente.atencion.security.UsuarioAutenticado;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
@@ -26,6 +27,7 @@ public class BloqueoController {
     }
 
     @PostMapping("/{tenantId}")
+    @CacheEvict(value = "disponibilidad", allEntries = true)
     public ResponseEntity<?> crear(@PathVariable String tenantId,
                                     @RequestBody BloqueoHorario bloqueo,
                                     Authentication auth) {
@@ -35,6 +37,7 @@ public class BloqueoController {
     }
 
     @DeleteMapping("/{tenantId}/{id}")
+    @CacheEvict(value = "disponibilidad", allEntries = true)
     public ResponseEntity<Void> eliminar(@PathVariable String tenantId,
                                           @PathVariable Long id,
                                           Authentication auth) {
@@ -58,6 +61,7 @@ public class BloqueoController {
     }
 
     @PostMapping("/{tenantId}/mios")
+    @CacheEvict(value = "disponibilidad", allEntries = true)
     public ResponseEntity<BloqueoHorario> crearMio(@PathVariable String tenantId,
                                                     @RequestBody BloqueoHorario bloqueo,
                                                     Authentication auth) {
@@ -71,6 +75,7 @@ public class BloqueoController {
     }
 
     @DeleteMapping("/{tenantId}/mios/{id}")
+    @CacheEvict(value = "disponibilidad", allEntries = true)
     public ResponseEntity<Void> eliminarMio(@PathVariable String tenantId,
                                              @PathVariable Long id,
                                              Authentication auth) {

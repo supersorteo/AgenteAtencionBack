@@ -20,9 +20,7 @@ public class BloqueoController {
     public List<BloqueoHorario> listar(@PathVariable String tenantId,
                                         @RequestParam(required = false) Long barberoId) {
         if (barberoId != null) {
-            return bloqueoRepository.findAll().stream()
-                .filter(b -> b.getTenantId().equals(tenantId) && b.getBarberoId().equals(barberoId))
-                .toList();
+            return bloqueoRepository.findByTenantIdAndBarberoId(tenantId, barberoId);
         }
         return bloqueoRepository.findByTenantId(tenantId);
     }

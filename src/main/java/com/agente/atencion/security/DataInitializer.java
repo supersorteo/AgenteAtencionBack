@@ -2,16 +2,23 @@ package com.agente.atencion.security;
 
 import com.agente.atencion.entity.Usuario;
 import com.agente.atencion.repository.UsuarioRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.CommandLineRunner;
+import org.springframework.core.env.Environment;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
+import java.util.Arrays;
 
 @Component
 public class DataInitializer implements CommandLineRunner {
 
+    private static final Logger log = LoggerFactory.getLogger(DataInitializer.class);
+
     private final UsuarioRepository repo;
     private final PasswordEncoder encoder;
+    private final Environment environment;
 
     @Value("${app.superadmin.username}")
     private String superAdminUsername;
@@ -25,18 +32,27 @@ public class DataInitializer implements CommandLineRunner {
     @Value("${app.superadmin2.password}")
     private String superAdmin2Password;
 
-    public DataInitializer(UsuarioRepository repo, PasswordEncoder encoder) {
+    public DataInitializer(UsuarioRepository repo, PasswordEncoder encoder, Environment environment) {
         this.repo = repo;
         this.encoder = encoder;
+        this.environment = environment;
     }
 
     @Override
     public void run(String... args) {
         String adminPass = System.getenv("ADMIN_PASSWORD");
+        boolean isProduction = Arrays.asList(environment.getActiveProfiles()).contains("production");
+
         if (adminPass == null || adminPass.isBlank()) {
+            if (isProduction) {
+                throw new IllegalStateException(
+                    "ADMIN_PASSWORD env var is required in production. " +
+                    "Set it in Railway variables (e.g. ADMIN_PASSWORD=admin123 for the demo).");
+            }
             adminPass = "admin123";
-            System.out.println("[WARN] ADMIN_PASSWORD no configurado. Usando 'admin123' (solo desarrollo).");
+            log.warn("ADMIN_PASSWORD not configured — using 'admin123' (dev only)");
         }
+
         if (repo.findByUsernameAndActivoTrue("admin").isEmpty()) {
             Usuario admin = new Usuario();
             admin.setUsername("admin");
@@ -45,7 +61,7 @@ public class DataInitializer implements CommandLineRunner {
             admin.setRol("ADMIN");
             admin.setActivo(true);
             repo.save(admin);
-            System.out.println("[INFO] Usuario admin de barberia-demo creado.");
+            log.info("Demo admin created for barberia-demo");
         }
 
         crearSuperAdminSiNoExiste(superAdminUsername, superAdminPassword);
@@ -61,7 +77,7 @@ public class DataInitializer implements CommandLineRunner {
             sa.setRol("SUPER_ADMIN");
             sa.setActivo(true);
             repo.save(sa);
-            System.out.println("[INFO] Super admin '" + username + "' creado.");
+            log.info("Super admin '{}' created", username);
         }
     }
 }

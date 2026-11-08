@@ -8,6 +8,7 @@ import java.util.Optional;
 public interface HorarioBarberoRepository extends JpaRepository<HorarioBarbero, Long> {
     List<HorarioBarbero> findByBarberoId(Long barberoId);
     Optional<HorarioBarbero> findByBarberoIdAndDiaSemana(Long barberoId, Integer diaSemana);
+    List<HorarioBarbero> findByBarberoIdInAndDiaSemana(java.util.Collection<Long> barberoIds, Integer diaSemana);
     void deleteByBarberoId(Long barberoId);
     void deleteByBarberoIdAndDiaSemana(Long barberoId, Integer diaSemana);
     void deleteByBarberoIdIn(java.util.Collection<Long> ids);

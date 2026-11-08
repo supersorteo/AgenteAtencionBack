@@ -1,5 +1,6 @@
 package com.agente.atencion.controller;
 
+import com.agente.atencion.dto.TurnoCrearRequest;
 import com.agente.atencion.entity.Turno;
 import com.agente.atencion.repository.BarberoRepository;
 import com.agente.atencion.repository.TurnoRepository;
@@ -7,6 +8,7 @@ import com.agente.atencion.security.UsuarioAutenticado;
 import com.agente.atencion.service.DisponibilidadService;
 import com.agente.atencion.service.TenantClockService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
@@ -37,7 +39,6 @@ public class TurnoController {
         if (fecha != null) {
             return ResponseEntity.ok(turnoRepository.findByTenantIdAndFecha(tenantId, LocalDate.parse(fecha)));
         }
-        // Sin filtro: ventana de -7 a +90 días para no cargar todo el historial
         LocalDate hoy = LocalDate.now(tenantClockService.clockFor(tenantId));
         return ResponseEntity.ok(turnoRepository.findByTenantIdAndFechaBetweenOrderByFechaAscHoraAsc(
             tenantId, hoy.minusDays(7), hoy.plusDays(90)));
@@ -52,29 +53,38 @@ public class TurnoController {
         }
         if (!tenantId.equals(usuario.tenantId())) return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         if (usuario.barberoId() == null) return ResponseEntity.badRequest().build();
+        LocalDate hoy = LocalDate.now(tenantClockService.clockFor(tenantId));
         List<Turno> turnos = fecha != null
             ? turnoRepository.findByTenantIdAndBarberoIdAndFecha(tenantId, usuario.barberoId(), LocalDate.parse(fecha))
-            : turnoRepository.findByTenantIdAndBarberoIdOrderByFechaAscHoraAsc(tenantId, usuario.barberoId());
+            : turnoRepository.findByTenantIdAndBarberoIdAndFechaBetweenOrderByFechaAscHoraAsc(
+                tenantId, usuario.barberoId(), hoy.minusDays(7), hoy.plusDays(90));
         return ResponseEntity.ok(turnos);
     }
 
     @PostMapping("/{tenantId}")
     @Transactional
-    public ResponseEntity<?> crear(@PathVariable String tenantId, @RequestBody Turno turno) {
-        turno.setTenantId(tenantId);
-        if (turno.getFecha() == null || turno.getFecha().isBefore(LocalDate.now(tenantClockService.clockFor(tenantId)))) {
+    @CacheEvict(value = "disponibilidad", allEntries = true)
+    public ResponseEntity<?> crear(@PathVariable String tenantId, @RequestBody TurnoCrearRequest request) {
+        if (request.fecha() == null || request.fecha().isBefore(LocalDate.now(tenantClockService.clockFor(tenantId)))) {
             return ResponseEntity.badRequest().body(Map.of("error", "No se pueden crear reservas en fechas pasadas."));
         }
-        // Calcular horaFin si tenemos barberoId y servicio
+        Turno turno = new Turno();
+        turno.setTenantId(tenantId);
+        turno.setBarberoId(request.barberoId());
+        turno.setServicio(request.servicio());
+        turno.setFecha(request.fecha());
+        turno.setHora(request.hora());
+        turno.setPaciente(request.paciente());
+        turno.setTelefono(request.telefono());
+        turno.setEstado("RESERVADO");
+
         if (turno.getBarberoId() != null && turno.getServicio() != null && turno.getHora() != null) {
-            // Share the agent's lock so a simultaneous form booking cannot take the same slot.
             if (barberoRepository.bloquearParaReserva(tenantId, turno.getBarberoId()).isEmpty()) {
                 return ResponseEntity.badRequest().body(Map.of("error", "El barbero no está disponible para este negocio."));
             }
             int duracion = disponibilidadService.obtenerDuracion(tenantId, turno.getServicio());
             String horaFin = disponibilidadService.calcularHoraFin(turno.getHora(), duracion);
             turno.setHoraFin(horaFin);
-            // Validar que el slot sigue disponible (protección contra doble booking)
             if (!disponibilidadService.validar(turno.getBarberoId(), turno.getFecha(), turno.getHora(), horaFin)) {
                 return ResponseEntity.status(HttpStatus.CONFLICT)
                     .body(Map.of("error", "El horario ya no está disponible. Por favor elegí otro."));
@@ -85,6 +95,7 @@ public class TurnoController {
 
     @PutMapping("/{tenantId}/{id}/reasignar")
     @Transactional
+    @CacheEvict(value = "disponibilidad", allEntries = true)
     public ResponseEntity<?> reasignar(@PathVariable String tenantId,
                                         @PathVariable Long id,
                                         @RequestBody Map<String, Long> body,
@@ -100,12 +111,10 @@ public class TurnoController {
         return turnoRepository.findById(id)
             .filter(t -> t.getTenantId().equals(tenantId))
             .map(t -> {
-                // Validar que el nuevo barbero existe y pertenece al tenant
                 boolean barberoValido = barberoRepository.bloquearParaReserva(tenantId, nuevoBarberoId).isPresent();
                 if (!barberoValido) {
                     return ResponseEntity.badRequest().<Object>body(Map.of("error", "Barbero no válido para este tenant"));
                 }
-                // Validar disponibilidad del nuevo barbero (si el turno tiene hora y horaFin)
                 if (t.getHora() != null && t.getHoraFin() != null) {
                     boolean disponible = disponibilidadService.validar(nuevoBarberoId, t.getFecha(), t.getHora(), t.getHoraFin());
                     if (!disponible) {
@@ -120,6 +129,7 @@ public class TurnoController {
     }
 
     @DeleteMapping("/{tenantId}/{id}")
+    @CacheEvict(value = "disponibilidad", allEntries = true)
     public ResponseEntity<?> eliminar(@PathVariable String tenantId,
                                        @PathVariable Long id,
                                        Authentication auth) {
@@ -134,6 +144,7 @@ public class TurnoController {
     }
 
     @PutMapping("/{tenantId}/{id}/estado")
+    @CacheEvict(value = "disponibilidad", allEntries = true)
     public ResponseEntity<Turno> actualizarEstado(@PathVariable String tenantId,
                                                    @PathVariable Long id,
                                                    @RequestBody Map<String, String> body,

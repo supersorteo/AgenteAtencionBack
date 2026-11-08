@@ -1,10 +1,12 @@
 package com.agente.atencion.service;
 
 import com.agente.atencion.entity.Barbero;
+import com.agente.atencion.entity.BloqueoHorario;
 import com.agente.atencion.entity.HorarioBarbero;
 import com.agente.atencion.entity.Turno;
 import com.agente.atencion.repository.*;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
@@ -12,6 +14,7 @@ import java.time.LocalTime;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
+import java.util.stream.Collectors;
 
 @Service
 public class DisponibilidadService {
@@ -28,6 +31,8 @@ public class DisponibilidadService {
 
     public record SlotDisponible(String hora, String horaFin, Long barberoId, String barberoNombre) {}
 
+    @Cacheable(value = "disponibilidad",
+               key = "#tenantId + '_' + #fecha + '_' + #servicioNombre + '_' + #barberoIdFiltro")
     public List<SlotDisponible> calcular(String tenantId, LocalDate fecha, String servicioNombre, Long barberoIdFiltro) {
         LocalDateTime ahora = LocalDateTime.now(tenantClockService.clockFor(tenantId));
         if (fecha.isBefore(ahora.toLocalDate())) return List.of();
@@ -41,22 +46,35 @@ public class DisponibilidadService {
                 .map(List::of).orElse(List.of())
             : barberoRepository.findByTenantIdAndActivoTrue(tenantId);
 
+        if (barberos.isEmpty()) return List.of();
+
+        // Bulk load in 3 queries instead of 3×N
+        List<Long> barberoIds = barberos.stream().map(Barbero::getId).toList();
+
+        Map<Long, HorarioBarbero> horariosPorBarbero = horarioRepository
+            .findByBarberoIdInAndDiaSemana(barberoIds, diaSemana)
+            .stream().collect(Collectors.toMap(HorarioBarbero::getBarberoId, h -> h));
+
+        Map<Long, List<Turno>> turnosPorBarbero = turnoRepository
+            .findByBarberoIdInAndFecha(barberoIds, fecha)
+            .stream().collect(Collectors.groupingBy(Turno::getBarberoId));
+
+        Map<Long, List<BloqueoHorario>> bloqueosPorBarbero = bloqueoRepository
+            .findByBarberoIdInAndFecha(barberoIds, fecha)
+            .stream().collect(Collectors.groupingBy(BloqueoHorario::getBarberoId));
+
         List<SlotDisponible> resultado = new ArrayList<>();
 
         for (Barbero barbero : barberos) {
-            Optional<HorarioBarbero> horarioOpt = horarioRepository
-                .findByBarberoIdAndDiaSemana(barbero.getId(), diaSemana);
-            if (horarioOpt.isEmpty()) continue; // barbero no trabaja ese día
+            HorarioBarbero horario = horariosPorBarbero.get(barbero.getId());
+            if (horario == null) continue; // barbero no trabaja ese día
 
-            HorarioBarbero horario = horarioOpt.get();
             LocalTime inicio = LocalTime.parse(horario.getHoraInicio(), FMT);
             LocalTime cierre = LocalTime.parse(horario.getHoraFin(), FMT);
 
-            List<Turno> turnosExistentes = turnoRepository
-                .findByBarberoIdAndFecha(barbero.getId(), fecha);
-            var bloqueos = bloqueoRepository.findByBarberoIdAndFecha(barbero.getId(), fecha);
+            List<Turno> turnosExistentes = turnosPorBarbero.getOrDefault(barbero.getId(), List.of());
+            List<BloqueoHorario> bloqueos = bloqueosPorBarbero.getOrDefault(barbero.getId(), List.of());
 
-            // Use minutes to avoid wrapping around midnight and looping indefinitely.
             int cierreMinutos = cierre.toSecondOfDay() / 60;
             for (int minuto = inicio.toSecondOfDay() / 60;
                     minuto + duracion <= cierreMinutos; minuto += INTERVALO_MINUTOS) {
@@ -98,7 +116,6 @@ public class DisponibilidadService {
     }
 
     private boolean tieneConflicto(Long barberoId, LocalDate fecha, String horaInicio, String horaFin, List<Turno> existentes) {
-        // Regla: conflicto si inicio < finExistente AND fin > inicioExistente
         for (Turno t : existentes) {
             if ("CANCELADO".equals(t.getEstado())) continue;
             String finExistente = t.getHoraFin() != null ? t.getHoraFin()

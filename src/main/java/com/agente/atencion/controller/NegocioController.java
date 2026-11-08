@@ -1,4 +1,4 @@
-﻿package com.agente.atencion.controller;
+package com.agente.atencion.controller;
 
 import com.agente.atencion.entity.Tenant;
 import com.agente.atencion.repository.TenantRepository;

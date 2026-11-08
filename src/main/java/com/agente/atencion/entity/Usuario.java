@@ -3,6 +3,7 @@ package com.agente.atencion.entity;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.Data;
+import java.time.LocalDateTime;
 
 @Entity @Table(name = "usuarios") @Data
 public class Usuario {
@@ -25,4 +26,7 @@ public class Usuario {
     private Long barberoId; // solo para rol BARBERO
 
     private boolean activo = true;
+
+    @Column(name = "password_changed_at", columnDefinition = "TIMESTAMP")
+    private LocalDateTime passwordChangedAt;
 }

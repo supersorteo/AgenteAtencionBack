@@ -125,6 +125,7 @@ public class UsuarioAdminController {
             .filter(u -> u.getTenantId().equals(tenantId))
             .map(u -> {
                 u.setPassword(encoder.encode(newPassword));
+                u.setPasswordChangedAt(java.time.LocalDateTime.now(java.time.ZoneOffset.UTC));
                 usuarioRepo.save(u);
                 return ResponseEntity.ok(Map.<String, Object>of(
                     "username", u.getUsername(),

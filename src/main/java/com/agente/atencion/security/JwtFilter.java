@@ -1,6 +1,7 @@
 package com.agente.atencion.security;
 
 import com.agente.atencion.repository.TenantRepository;
+import com.agente.atencion.repository.UsuarioRepository;
 import io.jsonwebtoken.Claims;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -13,6 +14,8 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 
 @Component
@@ -20,10 +23,12 @@ public class JwtFilter extends OncePerRequestFilter {
 
     private final JwtUtil jwtUtil;
     private final TenantRepository tenantRepo;
+    private final UsuarioRepository usuarioRepo;
 
-    public JwtFilter(JwtUtil jwtUtil, TenantRepository tenantRepo) {
+    public JwtFilter(JwtUtil jwtUtil, TenantRepository tenantRepo, UsuarioRepository usuarioRepo) {
         this.jwtUtil = jwtUtil;
         this.tenantRepo = tenantRepo;
+        this.usuarioRepo = usuarioRepo;
     }
 
     @Override
@@ -48,6 +53,18 @@ public class JwtFilter extends OncePerRequestFilter {
                         res.getWriter().write("{\"error\":\"Barbería desactivada\",\"code\":\"TENANT_INACTIVE\"}");
                         return;
                     }
+                }
+
+                // Invalidar tokens emitidos antes del último cambio de contraseña
+                LocalDateTime issuedAt = claims.getIssuedAt()
+                    .toInstant().atZone(ZoneOffset.UTC).toLocalDateTime();
+                var usuarioOpt = usuarioRepo.findByUsername(claims.getSubject());
+                if (usuarioOpt.isPresent() && usuarioOpt.get().getPasswordChangedAt() != null
+                        && issuedAt.isBefore(usuarioOpt.get().getPasswordChangedAt())) {
+                    res.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                    res.setContentType("application/json");
+                    res.getWriter().write("{\"error\":\"Sesión expirada. Iniciá sesión nuevamente.\",\"code\":\"TOKEN_REVOKED\"}");
+                    return;
                 }
 
                 var principal = new UsuarioAutenticado(claims.getSubject(), rol, tenantId, barberoId);

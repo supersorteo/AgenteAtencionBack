@@ -2,20 +2,17 @@ package com.agente.atencion.controller;
 
 import com.agente.atencion.dto.TurnoCrearRequest;
 import com.agente.atencion.entity.Turno;
-import com.agente.atencion.repository.BarberoRepository;
 import com.agente.atencion.repository.TurnoRepository;
 import com.agente.atencion.security.UsuarioAutenticado;
-import com.agente.atencion.service.DisponibilidadService;
 import com.agente.atencion.service.TenantClockService;
+import com.agente.atencion.service.TurnoService;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
@@ -26,9 +23,8 @@ public class TurnoController {
 
     private static final Logger log = LoggerFactory.getLogger(TurnoController.class);
     @Autowired private TurnoRepository turnoRepository;
-    @Autowired private BarberoRepository barberoRepository;
-    @Autowired private DisponibilidadService disponibilidadService;
     @Autowired private TenantClockService tenantClockService;
+    @Autowired private TurnoService turnoService;
 
     @GetMapping("/{tenantId}")
     public ResponseEntity<List<Turno>> listar(@PathVariable String tenantId,
@@ -66,43 +62,13 @@ public class TurnoController {
     }
 
     @PostMapping("/{tenantId}")
-    @Transactional
-    @CacheEvict(value = "disponibilidad", allEntries = true)
     public ResponseEntity<?> crear(@PathVariable String tenantId, @RequestBody TurnoCrearRequest request) {
         log.info("turno-crear tenant={} barbero={} servicio={} fecha={}", tenantId, request.barberoId(),
             request.servicio() != null ? request.servicio().replaceAll("[\r\n\t]", "_") : null, request.fecha());
-        if (request.fecha() == null || request.fecha().isBefore(LocalDate.now(tenantClockService.clockFor(tenantId)))) {
-            return ResponseEntity.badRequest().body(Map.of("error", "No se pueden crear reservas en fechas pasadas."));
-        }
-        Turno turno = new Turno();
-        turno.setTenantId(tenantId);
-        turno.setBarberoId(request.barberoId());
-        turno.setServicio(request.servicio());
-        turno.setFecha(request.fecha());
-        turno.setHora(request.hora());
-        turno.setPaciente(request.paciente());
-        turno.setTelefono(request.telefono());
-        turno.setEstado("RESERVADO");
-
-        if (turno.getBarberoId() != null && turno.getServicio() != null && turno.getHora() != null) {
-            if (barberoRepository.bloquearParaReserva(tenantId, turno.getBarberoId()).isEmpty()) {
-                return ResponseEntity.badRequest().body(Map.of("error", "El barbero no está disponible para este negocio."));
-            }
-            int duracion = disponibilidadService.obtenerDuracion(tenantId, turno.getServicio());
-            String horaFin = disponibilidadService.calcularHoraFin(turno.getHora(), duracion);
-            turno.setHoraFin(horaFin);
-            if (!disponibilidadService.validar(turno.getBarberoId(), turno.getFecha(), turno.getHora(), horaFin)) {
-                log.warn("CONFLICT turno-crear tenant={} barbero={} fecha={} hora={}", tenantId, turno.getBarberoId(), turno.getFecha(), turno.getHora());
-                return ResponseEntity.status(HttpStatus.CONFLICT)
-                    .body(Map.of("error", "El horario ya no está disponible. Por favor elegí otro."));
-            }
-        }
-        return ResponseEntity.ok(turnoRepository.save(turno));
+        return ResponseEntity.ok(turnoService.crear(tenantId, request));
     }
 
     @PutMapping("/{tenantId}/{id}/reasignar")
-    @Transactional
-    @CacheEvict(value = "disponibilidad", allEntries = true)
     public ResponseEntity<?> reasignar(@PathVariable String tenantId,
                                         @PathVariable Long id,
                                         @RequestBody Map<String, Long> body,
@@ -116,28 +82,10 @@ public class TurnoController {
         Long nuevoBarberoId = body.get("barberoId");
         if (nuevoBarberoId == null) return ResponseEntity.badRequest().body(Map.of("error", "barberoId requerido"));
 
-        return turnoRepository.findById(id)
-            .filter(t -> t.getTenantId().equals(tenantId))
-            .map(t -> {
-                boolean barberoValido = barberoRepository.bloquearParaReserva(tenantId, nuevoBarberoId).isPresent();
-                if (!barberoValido) {
-                    return ResponseEntity.badRequest().<Object>body(Map.of("error", "Barbero no válido para este tenant"));
-                }
-                if (t.getHora() != null && t.getHoraFin() != null) {
-                    boolean disponible = disponibilidadService.validar(nuevoBarberoId, t.getFecha(), t.getHora(), t.getHoraFin());
-                    if (!disponible) {
-                        return ResponseEntity.status(HttpStatus.CONFLICT).<Object>body(
-                            Map.of("error", "El barbero seleccionado no está disponible en ese horario"));
-                    }
-                }
-                t.setBarberoId(nuevoBarberoId);
-                return ResponseEntity.<Object>ok(turnoRepository.save(t));
-            })
-            .orElse(ResponseEntity.notFound().build());
+        return ResponseEntity.ok(turnoService.reasignar(tenantId, id, nuevoBarberoId));
     }
 
     @DeleteMapping("/{tenantId}/{id}")
-    @CacheEvict(value = "disponibilidad", allEntries = true)
     public ResponseEntity<?> eliminar(@PathVariable String tenantId,
                                        @PathVariable Long id,
                                        Authentication auth) {
@@ -146,31 +94,21 @@ public class TurnoController {
             log.warn("FORBIDDEN eliminar-turno tenant={} id={}", tenantId, id);
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
-        return turnoRepository.findById(id)
-            .filter(t -> t.getTenantId().equals(tenantId))
-            .map(t -> { turnoRepository.delete(t); log.info("turno-eliminado tenant={} id={}", tenantId, id); return ResponseEntity.ok().build(); })
-            .orElse(ResponseEntity.notFound().build());
+        boolean eliminado = turnoService.eliminar(tenantId, id);
+        if (!eliminado) return ResponseEntity.notFound().build();
+        log.info("turno-eliminado tenant={} id={}", tenantId, id);
+        return ResponseEntity.ok().build();
     }
 
     @PutMapping("/{tenantId}/{id}/estado")
-    @CacheEvict(value = "disponibilidad", allEntries = true)
     public ResponseEntity<Turno> actualizarEstado(@PathVariable String tenantId,
                                                    @PathVariable Long id,
                                                    @RequestBody Map<String, String> body,
                                                    Authentication auth) {
-        return turnoRepository.findById(id)
-            .filter(t -> {
-                if (!t.getTenantId().equals(tenantId)) return false;
-                if (auth == null || !(auth.getPrincipal() instanceof UsuarioAutenticado u)) return false;
-                if ("BARBERO".equals(u.rol())) {
-                    return u.barberoId() != null && u.barberoId().equals(t.getBarberoId());
-                }
-                return "ADMIN".equals(u.rol()) && tenantId.equals(u.tenantId());
-            })
-            .map(t -> {
-                t.setEstado(body.get("estado"));
-                return ResponseEntity.ok(turnoRepository.save(t));
-            })
+        if (auth == null || !(auth.getPrincipal() instanceof UsuarioAutenticado u))
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        return turnoService.actualizarEstado(tenantId, id, body.get("estado"), u)
+            .map(ResponseEntity::ok)
             .orElse(ResponseEntity.notFound().build());
     }
 }

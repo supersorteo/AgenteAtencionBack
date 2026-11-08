@@ -32,6 +32,9 @@ public class SecurityConfig {
             .csrf(AbstractHttpConfigurer::disable)
             .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
+                // Infraestructura — siempre primero para evitar que un catch-all los tape
+                .requestMatchers("/actuator/health").permitAll()
+                .requestMatchers("/error").permitAll()
                 // Siempre públicos
                 .requestMatchers(HttpMethod.POST, "/api/registro").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/plan-precios").permitAll()
@@ -53,8 +56,6 @@ public class SecurityConfig {
                 .requestMatchers("/api/v1/dashboard/**").hasRole("ADMIN")
                 // Todo lo demás requiere token
                 .requestMatchers("/api/v1/**").authenticated()
-                .requestMatchers("/actuator/health").permitAll()
-                .requestMatchers("/error").permitAll()
                 .anyRequest().authenticated()
             )
             .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
@@ -68,7 +69,6 @@ public class SecurityConfig {
     public CorsConfigurationSource corsSource() {
         CorsConfiguration cfg = new CorsConfiguration();
         String extra = System.getenv().getOrDefault("ALLOWED_ORIGINS", "");
-        // No wildcard en producción — el frontend debe estar en ALLOWED_ORIGINS
         List<String> patterns = new java.util.ArrayList<>(List.of(
             "http://localhost:4200",
             "http://localhost:3000"
@@ -79,6 +79,7 @@ public class SecurityConfig {
         cfg.setAllowedOriginPatterns(patterns);
         cfg.setAllowedMethods(List.of("GET","POST","PUT","DELETE","PATCH","OPTIONS"));
         cfg.setAllowedHeaders(List.of("Authorization","Content-Type","Accept"));
+        cfg.setMaxAge(3600L);
         // No seteamos allowCredentials porque usamos JWT en header, no cookies
         var source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", cfg);

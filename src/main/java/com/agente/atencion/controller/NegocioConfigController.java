@@ -5,6 +5,7 @@ import com.agente.atencion.repository.NegocioConfigRepository;
 import com.agente.atencion.repository.TenantRepository;
 import com.agente.atencion.security.UsuarioAutenticado;
 import com.agente.atencion.service.TenantClockService;
+import com.agente.atencion.service.TenantConfigService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -20,6 +21,7 @@ public class NegocioConfigController {
     @Autowired private NegocioConfigRepository repo;
     @Autowired private TenantRepository tenantRepo;
     @Autowired private TenantClockService tenantClockService;
+    @Autowired private TenantConfigService tenantConfigService;
 
     @GetMapping("/{tenantId}")
     public ResponseEntity<?> get(@PathVariable String tenantId) {
@@ -48,6 +50,7 @@ public class NegocioConfigController {
         config.setTenantId(tenantId);
         NegocioConfig saved = repo.save(config);
         tenantClockService.invalidate(tenantId);
+        tenantConfigService.evictNegocioConfig(tenantId);
         return ResponseEntity.ok(saved);
     }
 }

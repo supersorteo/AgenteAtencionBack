@@ -70,8 +70,7 @@ public class UsuarioAdminController {
                     "id", u.getId(),
                     "username", u.getUsername(),
                     "rol", u.getRol(),
-                    "barberoId", u.getBarberoId() != null ? u.getBarberoId() : 0L,
-                    "password", password
+                    "barberoId", u.getBarberoId() != null ? u.getBarberoId() : 0L
                 ));
             }
         }
@@ -107,8 +106,7 @@ public class UsuarioAdminController {
             "id", saved.getId(),
             "username", saved.getUsername(),
             "rol", saved.getRol(),
-            "barberoId", saved.getBarberoId() != null ? saved.getBarberoId() : 0L,
-            "password", password
+            "barberoId", saved.getBarberoId() != null ? saved.getBarberoId() : 0L
         ));
     }
 
@@ -129,7 +127,7 @@ public class UsuarioAdminController {
                 usuarioRepo.save(u);
                 return ResponseEntity.ok(Map.<String, Object>of(
                     "username", u.getUsername(),
-                    "password", newPassword
+                    "updated", true
                 ));
             })
             .orElse(ResponseEntity.notFound().build());

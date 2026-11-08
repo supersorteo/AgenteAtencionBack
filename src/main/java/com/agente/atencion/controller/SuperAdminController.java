@@ -235,15 +235,14 @@ public class SuperAdminController {
             .filter(u -> "ADMIN".equals(u.getRol())).findFirst();
         if (adminOpt.isEmpty()) return ResponseEntity.notFound().build();
         var admin = adminOpt.get();
-        String customPass = body != null ? body.get("password") : null;
-        String nuevaPass = (customPass != null && !customPass.isBlank())
-            ? customPass
-            : generarPasswordLegible();
+        String nuevaPass = body != null ? body.get("password") : null;
+        if (nuevaPass == null || nuevaPass.isBlank())
+            return ResponseEntity.badRequest().body(Map.of("error", "password es obligatorio"));
         admin.setPassword(encoder.encode(nuevaPass));
         usuarioRepo.save(admin);
         return ResponseEntity.ok(Map.of(
             "username", admin.getUsername(),
-            "password", nuevaPass
+            "updated", true
         ));
     }
 

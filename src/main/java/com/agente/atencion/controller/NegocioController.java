@@ -3,6 +3,7 @@ package com.agente.atencion.controller;
 import com.agente.atencion.entity.Tenant;
 import com.agente.atencion.repository.TenantRepository;
 import com.agente.atencion.security.UsuarioAutenticado;
+import com.agente.atencion.service.TenantConfigService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -16,6 +17,7 @@ import java.util.Map;
 public class NegocioController {
 
     @Autowired private TenantRepository tenantRepository;
+    @Autowired private TenantConfigService tenantConfigService;
 
     @GetMapping("/{tenantId}")
     public ResponseEntity<Tenant> getTenant(@PathVariable String tenantId, Authentication auth) {
@@ -34,7 +36,9 @@ public class NegocioController {
         if (ctx == null || ctx.isBlank()) return ResponseEntity.badRequest().build();
         return tenantRepository.findById(tenantId).map(t -> {
             t.setContexto(ctx);
-            return ResponseEntity.ok(tenantRepository.save(t));
+            Tenant saved = tenantRepository.save(t);
+            tenantConfigService.evictTenant(tenantId);
+            return ResponseEntity.ok(saved);
         }).orElse(ResponseEntity.notFound().build());
     }
 

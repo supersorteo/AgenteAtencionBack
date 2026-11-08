@@ -3,9 +3,7 @@ package com.agente.atencion.service;
 import com.agente.atencion.entity.NegocioConfig;
 import com.agente.atencion.entity.Tenant;
 import com.agente.atencion.repository.BarberoRepository;
-import com.agente.atencion.repository.NegocioConfigRepository;
 import com.agente.atencion.repository.ServicioRepository;
-import com.agente.atencion.repository.TenantRepository;
 import com.agente.atencion.tools.NegocioTools;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -28,8 +26,7 @@ public class AgenteService {
     private static final long SESSION_TTL_MS = 30 * 60 * 1000L;
 
     @Autowired private ChatClient.Builder chatClientBuilder;
-    @Autowired private TenantRepository tenantRepository;
-    @Autowired private NegocioConfigRepository negocioConfigRepository;
+    @Autowired private TenantConfigService tenantConfigService;
     @Autowired private BarberoRepository barberoRepository;
     @Autowired private ServicioRepository servicioRepository;
     @Autowired private NegocioTools negocioTools;
@@ -40,8 +37,8 @@ public class AgenteService {
     private final ConcurrentHashMap<String, Boolean>                 awaitingReserva = new ConcurrentHashMap<>();
 
     public String chat(String tenantId, String sessionId, String mensaje) {
-        Tenant tenant = tenantRepository.findById(tenantId)
-            .orElseThrow(() -> new RuntimeException("Negocio no encontrado: " + tenantId));
+        Tenant tenant = tenantConfigService.getTenant(tenantId);
+        if (tenant == null) throw new RuntimeException("Negocio no encontrado: " + tenantId);
 
         String sessionKey = tenantId + "-" + sessionId;
         sessionTouched.put(sessionKey, System.currentTimeMillis());
@@ -63,16 +60,17 @@ public class AgenteService {
         }
 
         final String contextoFinal = contexto;
-        String systemPrompt = negocioConfigRepository.findById(tenantId)
-            .map(cfg -> {
-                String ctx = contextoFinal;
-                if (cfg.getNombre() != null && !cfg.getNombre().isBlank()
-                        && tenant.getNombre() != null && !tenant.getNombre().isBlank()) {
-                    ctx = ctx.replace(tenant.getNombre(), cfg.getNombre());
-                }
-                return buildDatosNegocio(cfg, tenantId) + "\n\n" + ctx;
-            })
-            .orElse(contextoFinal);
+        NegocioConfig negocioConfig = tenantConfigService.getNegocioConfig(tenantId);
+        String systemPrompt;
+        if (negocioConfig != null) {
+            String ctx = (negocioConfig.getNombre() != null && !negocioConfig.getNombre().isBlank()
+                    && tenant.getNombre() != null && !tenant.getNombre().isBlank())
+                ? contextoFinal.replace(tenant.getNombre(), negocioConfig.getNombre())
+                : contextoFinal;
+            systemPrompt = buildDatosNegocio(negocioConfig, tenantId) + "\n\n" + ctx;
+        } else {
+            systemPrompt = contextoFinal;
+        }
 
         ChatClient client = chatClientBuilder.clone()
             .defaultSystem(systemPrompt)

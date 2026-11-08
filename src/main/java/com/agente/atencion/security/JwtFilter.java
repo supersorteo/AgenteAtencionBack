@@ -55,11 +55,19 @@ public class JwtFilter extends OncePerRequestFilter {
                     }
                 }
 
+                // Fail-closed: rechazar si el usuario no existe o está inactivo
+                var usuarioOpt = usuarioRepo.findByUsername(claims.getSubject());
+                if (usuarioOpt.isEmpty() || !usuarioOpt.get().isActivo()) {
+                    res.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                    res.setContentType("application/json");
+                    res.getWriter().write("{\"error\":\"Usuario no válido.\",\"code\":\"USER_INVALID\"}");
+                    return;
+                }
+
                 // Invalidar tokens emitidos antes del último cambio de contraseña
                 LocalDateTime issuedAt = claims.getIssuedAt()
                     .toInstant().atZone(ZoneOffset.UTC).toLocalDateTime();
-                var usuarioOpt = usuarioRepo.findByUsername(claims.getSubject());
-                if (usuarioOpt.isPresent() && usuarioOpt.get().getPasswordChangedAt() != null
+                if (usuarioOpt.get().getPasswordChangedAt() != null
                         && issuedAt.isBefore(usuarioOpt.get().getPasswordChangedAt())) {
                     res.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
                     res.setContentType("application/json");

@@ -27,6 +27,7 @@ public class DashboardController {
     @Autowired private ServicioRepository servicioRepository;
     @Autowired private BarberoRepository barberoRepository;
     @Autowired private TenantClockService tenantClockService;
+    @Autowired private com.agente.atencion.service.DashboardService dashboardService;
 
     @GetMapping("/{tenantId}/hoy")
     public ResponseEntity<?> hoy(@PathVariable String tenantId, Authentication auth) {
@@ -36,53 +37,7 @@ public class DashboardController {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
         LocalDate hoy = LocalDate.now(tenantClockService.clockFor(tenantId));
-        List<Turno> turnos = turnoRepository.findByTenantIdAndFecha(tenantId, hoy);
-
-        long total = turnos.size();
-        long reservados = turnos.stream().filter(t -> "RESERVADO".equals(t.getEstado())).count();
-        long completados = turnos.stream().filter(t -> "COMPLETADO".equals(t.getEstado())).count();
-        long cancelados = turnos.stream().filter(t -> "CANCELADO".equals(t.getEstado())).count();
-
-        // Ingreso estimado: suma precios de servicios completados o reservados
-        var preciosPorNombre = servicioRepository.findByTenantIdAndActivoTrue(tenantId)
-            .stream().collect(Collectors.toMap(s -> s.getNombre(), s -> s.getPrecio(), (a, b) -> a));
-
-        double ingresoEstimado = turnos.stream()
-            .filter(t -> !"CANCELADO".equals(t.getEstado()) && t.getServicio() != null)
-            .mapToDouble(t -> preciosPorNombre.getOrDefault(t.getServicio(), 0.0))
-            .sum();
-
-        double ingresoReal = turnos.stream()
-            .filter(t -> "COMPLETADO".equals(t.getEstado()) && t.getServicio() != null)
-            .mapToDouble(t -> preciosPorNombre.getOrDefault(t.getServicio(), 0.0))
-            .sum();
-
-        // Desglose por barbero
-        var barberosPorId = barberoRepository.findByTenantId(tenantId)
-            .stream().collect(Collectors.toMap(b -> b.getId(), b -> b.getNombre(), (a, b) -> a));
-
-        var porBarbero = turnos.stream()
-            .filter(t -> t.getBarberoId() != null)
-            .collect(Collectors.groupingBy(Turno::getBarberoId))
-            .entrySet().stream()
-            .map(e -> Map.of(
-                "barberoId", e.getKey(),
-                "nombre", barberosPorId.getOrDefault(e.getKey(), "Barbero #" + e.getKey()),
-                "total", e.getValue().size(),
-                "completados", e.getValue().stream().filter(t -> "COMPLETADO".equals(t.getEstado())).count()
-            ))
-            .toList();
-
-        return ResponseEntity.ok(Map.of(
-            "fecha", hoy.toString(),
-            "total", total,
-            "reservados", reservados,
-            "completados", completados,
-            "cancelados", cancelados,
-            "ingresoEstimado", (long) ingresoEstimado,
-            "ingresoReal", (long) ingresoReal,
-            "porBarbero", porBarbero
-        ));
+        return ResponseEntity.ok(dashboardService.hoy(tenantId, hoy));
     }
 
     @GetMapping("/{tenantId}/rango")
@@ -102,80 +57,7 @@ public class DashboardController {
         if (ChronoUnit.DAYS.between(fechaDesde, fechaHasta) > 92) {
             return ResponseEntity.badRequest().body(Map.of("error", "El rango máximo permitido es 92 días"));
         }
-        List<Turno> turnos = turnoRepository.findByTenantIdAndFechaBetweenOrderByFechaAscHoraAsc(tenantId, fechaDesde, fechaHasta);
-
-        long total = turnos.size();
-        long completados = turnos.stream().filter(t -> "COMPLETADO".equals(t.getEstado())).count();
-        long cancelados  = turnos.stream().filter(t -> "CANCELADO".equals(t.getEstado())).count();
-        long reservados  = turnos.stream().filter(t -> "RESERVADO".equals(t.getEstado())).count();
-
-        var preciosPorNombre = servicioRepository.findByTenantIdAndActivoTrue(tenantId)
-            .stream().collect(Collectors.toMap(s -> s.getNombre(), s -> s.getPrecio(), (a, b) -> a));
-
-        double ingresoEstimado = turnos.stream()
-            .filter(t -> !"CANCELADO".equals(t.getEstado()) && t.getServicio() != null)
-            .mapToDouble(t -> preciosPorNombre.getOrDefault(t.getServicio(), 0.0))
-            .sum();
-
-        double ingresoReal = turnos.stream()
-            .filter(t -> "COMPLETADO".equals(t.getEstado()) && t.getServicio() != null)
-            .mapToDouble(t -> preciosPorNombre.getOrDefault(t.getServicio(), 0.0))
-            .sum();
-
-        var barberosPorId = barberoRepository.findByTenantId(tenantId)
-            .stream().collect(Collectors.toMap(b -> b.getId(), b -> b.getNombre(), (a, b) -> a));
-
-        // Ranking de barberos
-        var rankingBarberos = turnos.stream()
-            .filter(t -> t.getBarberoId() != null)
-            .collect(Collectors.groupingBy(Turno::getBarberoId))
-            .entrySet().stream()
-            .map(e -> {
-                long comp = e.getValue().stream().filter(t -> "COMPLETADO".equals(t.getEstado())).count();
-                double ing = e.getValue().stream()
-                    .filter(t -> !"CANCELADO".equals(t.getEstado()) && t.getServicio() != null)
-                    .mapToDouble(t -> preciosPorNombre.getOrDefault(t.getServicio(), 0.0)).sum();
-                return Map.of(
-                    "barberoId", e.getKey(),
-                    "nombre", barberosPorId.getOrDefault(e.getKey(), "Barbero #" + e.getKey()),
-                    "total", (long) e.getValue().size(),
-                    "completados", comp,
-                    "ingreso", (long) ing
-                );
-            })
-            .sorted(Comparator.comparingLong(m -> -((Long) m.get("total"))))
-            .toList();
-
-        // Ranking de servicios (SQL GROUP BY)
-        var rankingServicios = turnoRepository.findRankingServicios(tenantId, fechaDesde, fechaHasta)
-            .stream()
-            .limit(5)
-            .map(row -> Map.of("servicio", row[0], "cantidad", row[1]))
-            .toList();
-
-        // Serie diaria (SQL GROUP BY — reemplaza el loop O(n×días))
-        var serieDiaria = turnoRepository.findSerieDiaria(tenantId, fechaDesde, fechaHasta)
-            .stream()
-            .map(row -> Map.<String, Object>of(
-                "fecha", row[0].toString(),
-                "total", row[1],
-                "completados", row[2] != null ? row[2] : 0L
-            ))
-            .toList();
-
-        return ResponseEntity.ok(Map.ofEntries(
-            Map.entry("desde", desde),
-            Map.entry("hasta", hasta),
-            Map.entry("total", total),
-            Map.entry("completados", completados),
-            Map.entry("cancelados", cancelados),
-            Map.entry("reservados", reservados),
-            Map.entry("ingresoEstimado", (long) ingresoEstimado),
-            Map.entry("ingresoReal", (long) ingresoReal),
-            Map.entry("rankingBarberos", rankingBarberos),
-            Map.entry("rankingServicios", rankingServicios),
-            Map.entry("serieDiaria", serieDiaria)
-        ));
+        return ResponseEntity.ok(dashboardService.rango(tenantId, fechaDesde, fechaHasta));
     }
 
     @GetMapping("/{tenantId}/mis-stats")

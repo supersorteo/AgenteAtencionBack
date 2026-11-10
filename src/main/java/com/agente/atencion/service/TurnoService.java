@@ -7,7 +7,7 @@ import com.agente.atencion.repository.BarberoRepository;
 import com.agente.atencion.repository.TurnoRepository;
 import com.agente.atencion.security.UsuarioAutenticado;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -24,9 +24,9 @@ public class TurnoService {
     @Autowired private DisponibilidadService disponibilidadService;
     @Autowired private TenantClockService tenantClockService;
     @Autowired private TenantConfigService tenantConfigService;
+    @Autowired private DisponibilidadCache disponibilidadCache;
 
     @Transactional
-    @CacheEvict(value = "disponibilidad", allEntries = true)
     public Turno crear(String tenantId, TurnoCrearRequest request) {
         Tenant tenant = tenantConfigService.getTenant(tenantId);
         if (tenant == null) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Negocio no encontrado.");
@@ -57,11 +57,17 @@ public class TurnoService {
         if (!disponibilidadService.validar(turno.getBarberoId(), turno.getFecha(), turno.getHora(), horaFin)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "El horario ya no está disponible. Por favor elegí otro.");
         }
-        return turnoRepository.save(turno);
+        Turno guardado;
+        try {
+            guardado = turnoRepository.saveAndFlush(turno);
+        } catch (DataIntegrityViolationException e) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "El horario ya no está disponible. Por favor elegí otro.");
+        }
+        disponibilidadCache.evictTenant(tenantId);
+        return guardado;
     }
 
     @Transactional
-    @CacheEvict(value = "disponibilidad", allEntries = true)
     public Turno reasignar(String tenantId, Long id, Long nuevoBarberoId) {
         Turno t = turnoRepository.findById(id)
             .filter(turno -> turno.getTenantId().equals(tenantId))
@@ -74,20 +80,22 @@ public class TurnoService {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "El barbero seleccionado no está disponible en ese horario");
         }
         t.setBarberoId(nuevoBarberoId);
-        return turnoRepository.save(t);
+        Turno guardado = turnoRepository.save(t);
+        disponibilidadCache.evictTenant(tenantId);
+        return guardado;
     }
 
-    @CacheEvict(value = "disponibilidad", allEntries = true)
     public boolean eliminar(String tenantId, Long id) {
-        return turnoRepository.findById(id)
+        boolean eliminado = turnoRepository.findById(id)
             .filter(t -> t.getTenantId().equals(tenantId))
             .map(t -> { turnoRepository.delete(t); return true; })
             .orElse(false);
+        if (eliminado) disponibilidadCache.evictTenant(tenantId);
+        return eliminado;
     }
 
-    @CacheEvict(value = "disponibilidad", allEntries = true)
     public Optional<Turno> actualizarEstado(String tenantId, Long id, String estado, UsuarioAutenticado u) {
-        return turnoRepository.findById(id)
+        Optional<Turno> actualizado = turnoRepository.findById(id)
             .filter(t -> {
                 if (!t.getTenantId().equals(tenantId)) return false;
                 if ("BARBERO".equals(u.rol())) {
@@ -96,5 +104,7 @@ public class TurnoService {
                 return "ADMIN".equals(u.rol()) && tenantId.equals(u.tenantId());
             })
             .map(t -> { t.setEstado(estado); return turnoRepository.save(t); });
+        if (actualizado.isPresent()) disponibilidadCache.evictTenant(tenantId);
+        return actualizado;
     }
 }

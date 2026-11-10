@@ -4,6 +4,7 @@ import com.agente.atencion.entity.Servicio;
 import com.agente.atencion.repository.ServicioRepository;
 import com.agente.atencion.security.AuthUtils;
 import com.agente.atencion.security.UsuarioAutenticado;
+import com.agente.atencion.service.DisponibilidadCache;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.http.HttpStatus;
@@ -17,6 +18,7 @@ import java.util.List;
 public class ServicioController {
 
     @Autowired private ServicioRepository servicioRepository;
+    @Autowired private DisponibilidadCache disponibilidadCache;
 
     @GetMapping("/{tenantId}")
     public List<Servicio> listar(@PathVariable String tenantId) {
@@ -50,7 +52,9 @@ public class ServicioController {
                 s.setPrecio(datos.getPrecio());
                 s.setDuracionMinutos(datos.getDuracionMinutos());
                 s.setEmoji(datos.getEmoji());
-                return ResponseEntity.ok(servicioRepository.save(s));
+                Servicio guardado = servicioRepository.save(s);
+                disponibilidadCache.evictTenant(tenantId);
+                return ResponseEntity.ok(guardado);
             })
             .orElse(ResponseEntity.notFound().build());
     }
@@ -66,6 +70,7 @@ public class ServicioController {
             .map(s -> {
                 s.setActivo(false);
                 servicioRepository.save(s);
+                disponibilidadCache.evictTenant(tenantId);
                 return ResponseEntity.ok().<Void>build();
             })
             .orElse(ResponseEntity.notFound().build());

@@ -3,6 +3,7 @@ package com.agente.atencion.controller;
 import com.agente.atencion.entity.Usuario;
 import com.agente.atencion.repository.TenantRepository;
 import com.agente.atencion.repository.UsuarioRepository;
+import com.agente.atencion.security.AuthCacheService;
 import com.agente.atencion.security.JwtUtil;
 import com.agente.atencion.service.SuscripcionService;
 import com.agente.atencion.security.UsuarioAutenticado;
@@ -22,9 +23,11 @@ public class AuthController {
     private final TenantRepository tenantRepo;
     private final JwtUtil jwtUtil;
     private final PasswordEncoder encoder;
+    private final AuthCacheService authCache;
 
     public AuthController(UsuarioRepository repo, TenantRepository tenantRepo,
-                          JwtUtil jwtUtil, PasswordEncoder encoder) {
+                          JwtUtil jwtUtil, PasswordEncoder encoder, AuthCacheService authCache) {
+        this.authCache = authCache;
         this.repo = repo;
         this.tenantRepo = tenantRepo;
         this.jwtUtil = jwtUtil;
@@ -44,6 +47,7 @@ public class AuthController {
             .map(usr -> {
                 usr.setPassword(encoder.encode(nueva));
                 repo.save(usr);
+                authCache.evict(usr.getUsername());
                 return ResponseEntity.ok(Map.<String, Object>of("ok", true));
             })
             .orElse(ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "Contraseña actual incorrecta")));

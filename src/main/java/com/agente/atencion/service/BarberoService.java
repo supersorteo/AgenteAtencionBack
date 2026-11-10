@@ -3,6 +3,7 @@ package com.agente.atencion.service;
 import com.agente.atencion.entity.Barbero;
 import com.agente.atencion.entity.HorarioBarbero;
 import com.agente.atencion.repository.*;
+import com.agente.atencion.security.AuthCacheService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.stereotype.Service;
@@ -16,6 +17,7 @@ public class BarberoService {
     @Autowired private TurnoRepository turnoRepository;
     @Autowired private BloqueoHorarioRepository bloqueoRepository;
     @Autowired private UsuarioRepository usuarioRepository;
+    @Autowired private AuthCacheService authCache;
 
     @Transactional
     @CacheEvict(value = "barberos", key = "#tenantId")
@@ -40,7 +42,10 @@ public class BarberoService {
         turnoRepository.deleteByBarberoId(id);
         bloqueoRepository.deleteByBarberoId(id);
         horarioRepository.deleteByBarberoId(id);
-        usuarioRepository.findByBarberoId(id).ifPresent(usuarioRepository::delete);
+        usuarioRepository.findByBarberoId(id).ifPresent(u -> {
+            usuarioRepository.delete(u);
+            authCache.evict(u.getUsername());
+        });
         barberoRepository.findById(id)
             .filter(b -> b.getTenantId().equals(tenantId))
             .ifPresent(barberoRepository::delete);

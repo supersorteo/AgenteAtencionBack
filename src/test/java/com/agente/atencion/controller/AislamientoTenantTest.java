@@ -39,6 +39,7 @@ class AislamientoTenantTest {
     @Mock BloqueoHorarioRepository bloqueoRepository;
     @Mock BarberoRepository barberoRepository;
     @Mock HorarioBarberoRepository horarioRepository;
+    @Mock com.agente.atencion.service.DisponibilidadCache disponibilidadCache;
     @InjectMocks ServicioController servicioController;
     @InjectMocks BloqueoController bloqueoController;
     @InjectMocks BarberoController barberoController;

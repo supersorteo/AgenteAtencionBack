@@ -6,6 +6,7 @@ import com.agente.atencion.repository.*;
 import com.agente.atencion.security.AuthUtils;
 import com.agente.atencion.security.UsuarioAutenticado;
 import com.agente.atencion.service.BarberoService;
+import com.agente.atencion.service.DisponibilidadCache;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.http.HttpStatus;
@@ -29,6 +30,7 @@ public class BarberoController {
     @Autowired private BloqueoHorarioRepository bloqueoRepository;
     @Autowired private UsuarioRepository usuarioRepository;
     @Autowired private BarberoService barberoService;
+    @Autowired private DisponibilidadCache disponibilidadCache;
 
     @GetMapping("/{tenantId}")
     public List<Barbero> listar(@PathVariable String tenantId) {
@@ -43,6 +45,7 @@ public class BarberoController {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
         Barbero saved = barberoService.crearConHorarios(tenantId, barbero);
+        disponibilidadCache.evictTenant(tenantId);
         log.info("barbero-creado tenant={} id={} nombre={}", tenantId, saved.getId(), saved.getNombre());
         return ResponseEntity.ok(saved);
     }
@@ -61,7 +64,9 @@ public class BarberoController {
                 b.setEspecialidad(datos.getEspecialidad());
                 b.setFoto(datos.getFoto());
                 b.setActivo(datos.getActivo());
-                return ResponseEntity.ok(barberoRepository.save(b));
+                Barbero guardado = barberoRepository.save(b);
+                disponibilidadCache.evictTenant(tenantId);
+                return ResponseEntity.ok(guardado);
             })
             .orElse(ResponseEntity.notFound().build());
     }
@@ -97,6 +102,7 @@ public class BarberoController {
         }
         log.info("barbero-eliminado tenant={} id={}", tenantId, id);
         barberoService.eliminarConCascade(tenantId, id);
+        disponibilidadCache.evictTenant(tenantId);
         return ResponseEntity.ok().build();
     }
 
@@ -136,7 +142,9 @@ public class BarberoController {
         if (!AuthUtils.isAdmin(auth, tenantId)) return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         if (barberoRepository.findById(id).filter(b -> b.getTenantId().equals(tenantId)).isEmpty())
             return ResponseEntity.notFound().build();
-        return ResponseEntity.ok(barberoService.guardarHorarioDia(id, horario));
+        HorarioBarbero guardado = barberoService.guardarHorarioDia(id, horario);
+        disponibilidadCache.evictTenant(tenantId);
+        return ResponseEntity.ok(guardado);
     }
 
     @DeleteMapping("/{tenantId}/{id}/horario/{dia}")
@@ -148,6 +156,7 @@ public class BarberoController {
         if (barberoRepository.findById(id).filter(b -> b.getTenantId().equals(tenantId)).isEmpty())
             return ResponseEntity.notFound().build();
         barberoService.eliminarHorarioDia(id, dia);
+        disponibilidadCache.evictTenant(tenantId);
         return ResponseEntity.ok().build();
     }
 }

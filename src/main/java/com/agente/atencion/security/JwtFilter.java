@@ -1,7 +1,6 @@
 package com.agente.atencion.security;
 
-import com.agente.atencion.repository.TenantRepository;
-import com.agente.atencion.repository.UsuarioRepository;
+import com.agente.atencion.service.TenantConfigService;
 import com.agente.atencion.service.SuscripcionService;
 import io.jsonwebtoken.Claims;
 import jakarta.servlet.FilterChain;
@@ -23,13 +22,13 @@ import java.util.List;
 public class JwtFilter extends OncePerRequestFilter {
 
     private final JwtUtil jwtUtil;
-    private final TenantRepository tenantRepo;
-    private final UsuarioRepository usuarioRepo;
+    private final TenantConfigService tenantConfigService;
+    private final AuthCacheService authCache;
 
-    public JwtFilter(JwtUtil jwtUtil, TenantRepository tenantRepo, UsuarioRepository usuarioRepo) {
+    public JwtFilter(JwtUtil jwtUtil, TenantConfigService tenantConfigService, AuthCacheService authCache) {
         this.jwtUtil = jwtUtil;
-        this.tenantRepo = tenantRepo;
-        this.usuarioRepo = usuarioRepo;
+        this.tenantConfigService = tenantConfigService;
+        this.authCache = authCache;
     }
 
     @Override
@@ -46,8 +45,10 @@ public class JwtFilter extends OncePerRequestFilter {
 
                 // SUPER_ADMIN (tenantId="system") no está asociado a ningún tenant
                 if (!"system".equals(tenantId)) {
-                    var estado = tenantRepo.findById(tenantId)
-                        .map(SuscripcionService::estado).orElse(SuscripcionService.EstadoAcceso.DESACTIVADO);
+                    var tenant = tenantConfigService.getTenant(tenantId);
+                    var estado = tenant == null
+                        ? SuscripcionService.EstadoAcceso.DESACTIVADO
+                        : SuscripcionService.estado(tenant);
                     if (estado != SuscripcionService.EstadoAcceso.ACTIVO) {
                         res.setStatus(HttpServletResponse.SC_FORBIDDEN);
                         res.setContentType("application/json");
@@ -59,8 +60,8 @@ public class JwtFilter extends OncePerRequestFilter {
                 }
 
                 // Fail-closed: rechazar si el usuario no existe o está inactivo
-                var usuarioOpt = usuarioRepo.findByUsername(claims.getSubject());
-                if (usuarioOpt.isEmpty() || !usuarioOpt.get().isActivo()) {
+                var usuarioOpt = authCache.usuario(claims.getSubject());
+                if (usuarioOpt.isEmpty() || !usuarioOpt.get().activo()) {
                     res.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
                     res.setContentType("application/json");
                     res.getWriter().write("{\"error\":\"Usuario no válido.\",\"code\":\"USER_INVALID\"}");
@@ -70,8 +71,8 @@ public class JwtFilter extends OncePerRequestFilter {
                 // Invalidar tokens emitidos antes del último cambio de contraseña
                 LocalDateTime issuedAt = claims.getIssuedAt()
                     .toInstant().atZone(ZoneOffset.UTC).toLocalDateTime();
-                if (usuarioOpt.get().getPasswordChangedAt() != null
-                        && issuedAt.isBefore(usuarioOpt.get().getPasswordChangedAt())) {
+                if (usuarioOpt.get().passwordChangedAt() != null
+                        && issuedAt.isBefore(usuarioOpt.get().passwordChangedAt())) {
                     res.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
                     res.setContentType("application/json");
                     res.getWriter().write("{\"error\":\"Sesión expirada. Iniciá sesión nuevamente.\",\"code\":\"TOKEN_REVOKED\"}");

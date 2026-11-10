@@ -5,8 +5,8 @@ import com.agente.atencion.repository.BarberoRepository;
 import com.agente.atencion.repository.BloqueoHorarioRepository;
 import com.agente.atencion.security.AuthUtils;
 import com.agente.atencion.security.UsuarioAutenticado;
+import com.agente.atencion.service.DisponibilidadCache;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
@@ -22,6 +22,7 @@ public class BloqueoController {
     private static final Logger log = LoggerFactory.getLogger(BloqueoController.class);
     @Autowired private BloqueoHorarioRepository bloqueoRepository;
     @Autowired private BarberoRepository barberoRepository;
+    @Autowired private DisponibilidadCache disponibilidadCache;
 
     @GetMapping("/{tenantId}")
     public ResponseEntity<List<BloqueoHorario>> listar(@PathVariable String tenantId,
@@ -35,7 +36,6 @@ public class BloqueoController {
     }
 
     @PostMapping("/{tenantId}")
-    @CacheEvict(value = "disponibilidad", allEntries = true)
     public ResponseEntity<?> crear(@PathVariable String tenantId,
                                     @RequestBody BloqueoHorario bloqueo,
                                     Authentication auth) {
@@ -50,12 +50,12 @@ public class BloqueoController {
         bloqueo.setId(null);
         bloqueo.setTenantId(tenantId);
         BloqueoHorario saved = bloqueoRepository.save(bloqueo);
+        disponibilidadCache.evictTenant(tenantId);
         log.info("bloqueo-creado tenant={} barbero={} fecha={}", tenantId, saved.getBarberoId(), saved.getFecha());
         return ResponseEntity.ok(saved);
     }
 
     @DeleteMapping("/{tenantId}/{id}")
-    @CacheEvict(value = "disponibilidad", allEntries = true)
     public ResponseEntity<Void> eliminar(@PathVariable String tenantId,
                                           @PathVariable Long id,
                                           Authentication auth) {
@@ -67,6 +67,7 @@ public class BloqueoController {
             .filter(b -> b.getTenantId().equals(tenantId))
             .map(b -> {
                 bloqueoRepository.delete(b);
+                disponibilidadCache.evictTenant(tenantId);
                 return ResponseEntity.ok().<Void>build();
             })
             .orElse(ResponseEntity.notFound().build());
@@ -82,7 +83,6 @@ public class BloqueoController {
     }
 
     @PostMapping("/{tenantId}/mios")
-    @CacheEvict(value = "disponibilidad", allEntries = true)
     public ResponseEntity<BloqueoHorario> crearMio(@PathVariable String tenantId,
                                                     @RequestBody BloqueoHorario bloqueo,
                                                     Authentication auth) {
@@ -93,11 +93,12 @@ public class BloqueoController {
         bloqueo.setId(null);
         bloqueo.setTenantId(u.tenantId()); // siempre del JWT, nunca del body ni del path
         bloqueo.setBarberoId(u.barberoId());
-        return ResponseEntity.ok(bloqueoRepository.save(bloqueo));
+        BloqueoHorario guardado = bloqueoRepository.save(bloqueo);
+        disponibilidadCache.evictTenant(tenantId);
+        return ResponseEntity.ok(guardado);
     }
 
     @DeleteMapping("/{tenantId}/mios/{id}")
-    @CacheEvict(value = "disponibilidad", allEntries = true)
     public ResponseEntity<Void> eliminarMio(@PathVariable String tenantId,
                                              @PathVariable Long id,
                                              Authentication auth) {
@@ -105,7 +106,7 @@ public class BloqueoController {
         if (!tenantId.equals(u.tenantId())) return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         return bloqueoRepository.findById(id)
             .filter(b -> b.getTenantId().equals(tenantId) && b.getBarberoId().equals(u.barberoId()))
-            .map(b -> { bloqueoRepository.delete(b); return ResponseEntity.ok().<Void>build(); })
+            .map(b -> { bloqueoRepository.delete(b); disponibilidadCache.evictTenant(tenantId); return ResponseEntity.ok().<Void>build(); })
             .orElse(ResponseEntity.notFound().build());
     }
 }

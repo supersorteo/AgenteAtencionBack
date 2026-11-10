@@ -15,12 +15,12 @@ public class TenantConfigService {
     @Autowired private TenantRepository tenantRepository;
     @Autowired private NegocioConfigRepository negocioConfigRepository;
 
-    @Cacheable("tenants")
+    @Cacheable(value = "tenants", unless = "#result == null")
     public Tenant getTenant(String tenantId) {
         return tenantRepository.findById(tenantId).orElse(null);
     }
 
-    @Cacheable("negocioConfigs")
+    @Cacheable(value = "negocioConfigs", unless = "#result == null")
     public NegocioConfig getNegocioConfig(String tenantId) {
         return negocioConfigRepository.findById(tenantId).orElse(null);
     }

@@ -40,6 +40,7 @@ class TurnoServiceTest {
     @Mock DisponibilidadService disponibilidadService;
     @Mock TenantClockService tenantClockService;
     @Mock TenantConfigService tenantConfigService;
+    @Mock DisponibilidadCache disponibilidadCache;
     @InjectMocks TurnoService service;
 
     private TurnoCrearRequest request;
@@ -128,6 +129,22 @@ class TurnoServiceTest {
     }
 
     @Test
+    void restriccionUnicaDeLaBase_respondeConflictoYNoVaciaLaCache() {
+        when(tenantConfigService.getTenant(TENANT)).thenReturn(tenant(true));
+        relojFijo();
+        when(barberoRepository.bloquearParaReserva(TENANT, 1L)).thenReturn(Optional.of(new Barbero()));
+        when(disponibilidadService.buscarDuracion(TENANT, "Corte")).thenReturn(OptionalInt.of(30));
+        when(disponibilidadService.slotValido(TENANT, 1L, FECHA, "10:00", 30)).thenReturn(true);
+        when(disponibilidadService.calcularHoraFin("10:00", 30)).thenReturn("10:30");
+        when(disponibilidadService.validar(1L, FECHA, "10:00", "10:30")).thenReturn(true);
+        when(turnoRepository.saveAndFlush(any(Turno.class)))
+            .thenThrow(new org.springframework.dao.DataIntegrityViolationException("uq_turnos_barbero_fecha_hora_activo"));
+
+        assertRechazo(HttpStatus.CONFLICT);
+        verify(disponibilidadCache, never()).evictTenant(any());
+    }
+
+    @Test
     void reservaValida_guardaConHoraFin() {
         when(tenantConfigService.getTenant(TENANT)).thenReturn(tenant(true));
         relojFijo();
@@ -136,9 +153,10 @@ class TurnoServiceTest {
         when(disponibilidadService.slotValido(TENANT, 1L, FECHA, "10:00", 30)).thenReturn(true);
         when(disponibilidadService.calcularHoraFin("10:00", 30)).thenReturn("10:30");
         when(disponibilidadService.validar(1L, FECHA, "10:00", "10:30")).thenReturn(true);
-        when(turnoRepository.save(any(Turno.class))).thenAnswer(i -> i.getArgument(0));
+        when(turnoRepository.saveAndFlush(any(Turno.class))).thenAnswer(i -> i.getArgument(0));
 
         Turno guardado = service.crear(TENANT, request);
+        verify(disponibilidadCache).evictTenant(TENANT);
 
         assertEquals("10:30", guardado.getHoraFin());
         assertEquals("RESERVADO", guardado.getEstado());

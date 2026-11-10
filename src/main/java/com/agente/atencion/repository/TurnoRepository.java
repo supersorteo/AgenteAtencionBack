@@ -51,4 +51,34 @@ public interface TurnoRepository extends JpaRepository<Turno, Long> {
         "GROUP BY t.paciente, t.telefono ORDER BY MAX(t.fecha) DESC"
     )
     java.util.List<Object[]> findClientesSummary(@org.springframework.data.repository.query.Param("tenantId") String tenantId);
+
+    @org.springframework.data.jpa.repository.Query(
+        "SELECT t.paciente, t.telefono, COUNT(t), MAX(t.fecha) FROM Turno t " +
+        "WHERE t.tenantId = :tenantId AND t.estado <> 'CANCELADO' " +
+        "AND (LOWER(COALESCE(t.paciente, '')) LIKE :busqueda OR COALESCE(t.telefono, '') LIKE :busqueda) " +
+        "GROUP BY t.paciente, t.telefono ORDER BY MAX(t.fecha) DESC, t.paciente"
+    )
+    org.springframework.data.domain.Slice<Object[]> buscarClientes(
+        @org.springframework.data.repository.query.Param("tenantId") String tenantId,
+        @org.springframework.data.repository.query.Param("busqueda") String busqueda,
+        org.springframework.data.domain.Pageable pagina);
+
+    @org.springframework.data.jpa.repository.Query(nativeQuery = true, value =
+        "SELECT COUNT(*), COUNT(*) FILTER (WHERE v = 1), COUNT(*) FILTER (WHERE v > 1) FROM (" +
+        "SELECT COUNT(*) AS v FROM turnos WHERE tenant_id = :tenantId AND COALESCE(estado, '') <> 'CANCELADO' " +
+        "GROUP BY paciente, telefono) x")
+    List<Object[]> resumenClientes(@org.springframework.data.repository.query.Param("tenantId") String tenantId);
+
+    List<Turno> findByTenantIdAndPacienteOrderByFechaDescHoraDesc(String tenantId, String paciente,
+        org.springframework.data.domain.Pageable pagina);
+
+    @org.springframework.data.jpa.repository.Query(
+        "SELECT t.barberoId, t.estado, t.servicio, COUNT(t) FROM Turno t " +
+        "WHERE t.tenantId = :tenantId AND t.fecha BETWEEN :desde AND :hasta " +
+        "GROUP BY t.barberoId, t.estado, t.servicio"
+    )
+    java.util.List<Object[]> contarPorBarberoEstadoServicio(
+        @org.springframework.data.repository.query.Param("tenantId") String tenantId,
+        @org.springframework.data.repository.query.Param("desde") LocalDate desde,
+        @org.springframework.data.repository.query.Param("hasta") LocalDate hasta);
 }

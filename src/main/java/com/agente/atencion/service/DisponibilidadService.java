@@ -53,7 +53,7 @@ public class DisponibilidadService {
 
         Map<Long, HorarioBarbero> horariosPorBarbero = horarioRepository
             .findByBarberoIdInAndDiaSemana(barberoIds, diaSemana)
-            .stream().collect(Collectors.toMap(HorarioBarbero::getBarberoId, h -> h));
+            .stream().collect(Collectors.toMap(HorarioBarbero::getBarberoId, h -> h, (a, b) -> a));
 
         Map<Long, List<Turno>> turnosPorBarbero = turnoRepository
             .findByBarberoIdInAndFecha(barberoIds, fecha)

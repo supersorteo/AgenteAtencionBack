@@ -3,6 +3,7 @@ package com.agente.atencion.controller;
 import com.agente.atencion.entity.Usuario;
 import com.agente.atencion.repository.BarberoRepository;
 import com.agente.atencion.repository.UsuarioRepository;
+import com.agente.atencion.security.AuthCacheService;
 import com.agente.atencion.security.AuthUtils;
 import com.agente.atencion.security.UsuarioAutenticado;
 import org.springframework.http.HttpStatus;
@@ -21,11 +22,19 @@ public class UsuarioAdminController {
     private final UsuarioRepository usuarioRepo;
     private final BarberoRepository barberoRepo;
     private final PasswordEncoder encoder;
+    private final AuthCacheService authCache;
 
-    public UsuarioAdminController(UsuarioRepository usuarioRepo, BarberoRepository barberoRepo, PasswordEncoder encoder) {
+    public UsuarioAdminController(UsuarioRepository usuarioRepo, BarberoRepository barberoRepo, PasswordEncoder encoder,
+                                  AuthCacheService authCache) {
+        this.authCache = authCache;
         this.usuarioRepo = usuarioRepo;
         this.barberoRepo = barberoRepo;
         this.encoder = encoder;
+    }
+
+    // El iat del JWT va en segundos: sin truncar, un token emitido justo después del cambio se rechazaría
+    private static java.time.LocalDateTime ahoraUtc() {
+        return java.time.LocalDateTime.now(java.time.ZoneOffset.UTC).truncatedTo(java.time.temporal.ChronoUnit.SECONDS);
     }
 
     @GetMapping("/{tenantId}/usuarios")
@@ -63,10 +72,14 @@ public class UsuarioAdminController {
             var existing = usuarioRepo.findByBarberoId(barberoId);
             if (existing.isPresent()) {
                 Usuario u = existing.get();
+                String usernameAnterior = u.getUsername();
                 u.setUsername(username.toLowerCase().trim());
                 u.setPassword(encoder.encode(password));
+                u.setPasswordChangedAt(ahoraUtc());
                 u.setActivo(true);
                 usuarioRepo.save(u);
+                authCache.evict(usernameAnterior);
+                authCache.evict(u.getUsername());
                 return ResponseEntity.ok(Map.of(
                     "id", u.getId(),
                     "username", u.getUsername(),
@@ -85,9 +98,11 @@ public class UsuarioAdminController {
             if (u.isActivo())
                 return ResponseEntity.badRequest().body(Map.of("error", "El usuario '" + username + "' ya existe"));
             u.setPassword(encoder.encode(password));
+            u.setPasswordChangedAt(ahoraUtc());
             u.setBarberoId(barberoId);
             u.setActivo(true);
             usuarioRepo.save(u);
+            authCache.evict(u.getUsername());
             return ResponseEntity.ok(Map.of(
                 "id", u.getId(), "username", u.getUsername(),
                 "rol", u.getRol(), "barberoId", u.getBarberoId() != null ? u.getBarberoId() : 0L
@@ -125,8 +140,9 @@ public class UsuarioAdminController {
             .filter(u -> u.getTenantId().equals(tenantId))
             .map(u -> {
                 u.setPassword(encoder.encode(newPassword));
-                u.setPasswordChangedAt(java.time.LocalDateTime.now(java.time.ZoneOffset.UTC));
+                u.setPasswordChangedAt(ahoraUtc());
                 usuarioRepo.save(u);
+                authCache.evict(u.getUsername());
                 return ResponseEntity.ok(Map.<String, Object>of(
                     "username", u.getUsername(),
                     "updated", true
@@ -145,6 +161,7 @@ public class UsuarioAdminController {
             .map(u -> {
                 u.setActivo(false);
                 usuarioRepo.save(u);
+                authCache.evict(u.getUsername());
                 return ResponseEntity.ok().build();
             })
             .orElse(ResponseEntity.notFound().build());

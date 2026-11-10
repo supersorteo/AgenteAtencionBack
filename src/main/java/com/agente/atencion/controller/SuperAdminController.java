@@ -9,6 +9,7 @@ import com.agente.atencion.entity.Tenant;
 import com.agente.atencion.entity.TipoCodigo;
 import com.agente.atencion.repository.*;
 import jakarta.validation.Valid;
+import com.agente.atencion.security.AuthCacheService;
 import com.agente.atencion.service.CloudinaryService;
 import com.agente.atencion.service.SuscripcionService;
 import com.agente.atencion.service.TenantConfigService;
@@ -48,6 +49,7 @@ public class SuperAdminController {
     private final PasswordEncoder encoder;
     private final SuscripcionService suscripcionService;
     private final TenantConfigService tenantConfigService;
+    private final AuthCacheService authCache;
 
     public SuperAdminController(TenantRepository tenantRepo, UsuarioRepository usuarioRepo,
                                 CodigoInvitacionRepository codigoRepo, PlanPrecioRepository planPrecioRepo,
@@ -57,7 +59,9 @@ public class SuperAdminController {
                                 CategoriaServicioRepository categoriaServicioRepo,
                                 GaleriaRepository galeriaRepo, NegocioConfigRepository negocioConfigRepo,
                                 CloudinaryService cloudinaryService, PasswordEncoder encoder,
-                                SuscripcionService suscripcionService, TenantConfigService tenantConfigService) {
+                                SuscripcionService suscripcionService, TenantConfigService tenantConfigService,
+                                AuthCacheService authCache) {
+        this.authCache = authCache;
         this.suscripcionService = suscripcionService;
         this.tenantConfigService = tenantConfigService;
         this.tenantRepo = tenantRepo;
@@ -223,6 +227,7 @@ public class SuperAdminController {
         categoriaServicioRepo.deleteByTenantId(slug);
         galeriaRepo.deleteByTenantId(slug);
         usuarioRepo.deleteByTenantId(slug);
+        authCache.evictAll();
         negocioConfigRepo.deleteById(slug);
         tenantRepo.deleteById(slug);
         tenantConfigService.evictTenant(slug);
@@ -254,6 +259,7 @@ public class SuperAdminController {
         admin.setPasswordChangedAt(java.time.LocalDateTime.now(java.time.ZoneOffset.UTC)
             .truncatedTo(java.time.temporal.ChronoUnit.SECONDS));
         usuarioRepo.save(admin);
+        authCache.evict(admin.getUsername());
         return ResponseEntity.ok(Map.of(
             "username", admin.getUsername(),
             "updated", true

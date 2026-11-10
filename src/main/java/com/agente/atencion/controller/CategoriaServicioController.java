@@ -28,6 +28,7 @@ public class CategoriaServicioController {
                                                     @RequestBody CategoriaServicio cat,
                                                     Authentication auth) {
         if (!AuthUtils.isAdmin(auth, tenantId)) return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        cat.setId(null);
         cat.setTenantId(tenantId);
         cat.setActivo(true);
         return ResponseEntity.ok(repo.save(cat));

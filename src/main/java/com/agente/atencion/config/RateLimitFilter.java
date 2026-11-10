@@ -47,7 +47,8 @@ public class RateLimitFilter extends OncePerRequestFilter {
         boolean isStrictPost = "POST".equals(method) &&
             (path.startsWith("/api/auth/login") || path.startsWith("/api/registro"));
         boolean isNormalPost = "POST".equals(method) &&
-            (path.contains("/turnos") || path.contains("/chat"));
+            (path.contains("/turnos") || path.contains("/chat") || path.startsWith("/api/pagos/mercadopago/")
+                || path.startsWith("/api/pagos/paypal/"));
 
         if (isStrictPost || isNormalPost) {
             String ip = req.getRemoteAddr();

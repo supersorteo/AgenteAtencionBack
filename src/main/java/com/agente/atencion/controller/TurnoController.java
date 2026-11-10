@@ -1,6 +1,7 @@
 package com.agente.atencion.controller;
 
 import com.agente.atencion.dto.TurnoCrearRequest;
+import jakarta.validation.Valid;
 import com.agente.atencion.entity.Turno;
 import com.agente.atencion.repository.TurnoRepository;
 import com.agente.atencion.security.UsuarioAutenticado;
@@ -62,7 +63,7 @@ public class TurnoController {
     }
 
     @PostMapping("/{tenantId}")
-    public ResponseEntity<?> crear(@PathVariable String tenantId, @RequestBody TurnoCrearRequest request) {
+    public ResponseEntity<?> crear(@PathVariable String tenantId, @Valid @RequestBody TurnoCrearRequest request) {
         log.info("turno-crear tenant={} barbero={} servicio={} fecha={}", tenantId, request.barberoId(),
             request.servicio() != null ? request.servicio().replaceAll("[\r\n\t]", "_") : null, request.fecha());
         return ResponseEntity.ok(turnoService.crear(tenantId, request));

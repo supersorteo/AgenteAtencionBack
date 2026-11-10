@@ -20,6 +20,7 @@ public class BarberoService {
     @Transactional
     @CacheEvict(value = "barberos", key = "#tenantId")
     public Barbero crearConHorarios(String tenantId, Barbero barbero) {
+        barbero.setId(null);
         barbero.setTenantId(tenantId);
         Barbero saved = barberoRepository.save(barbero);
         for (int dia = 2; dia <= 7; dia++) {
@@ -47,6 +48,7 @@ public class BarberoService {
 
     @Transactional
     public HorarioBarbero guardarHorarioDia(Long barberoId, HorarioBarbero horario) {
+        horario.setId(null);
         horario.setBarberoId(barberoId);
         horarioRepository.findByBarberoIdAndDiaSemana(barberoId, horario.getDiaSemana())
             .ifPresent(h -> horario.setId(h.getId()));

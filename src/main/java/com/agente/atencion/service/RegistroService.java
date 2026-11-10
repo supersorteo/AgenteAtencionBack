@@ -25,6 +25,10 @@ import java.time.LocalDateTime;
 @Service
 public class RegistroService {
 
+    private static final java.util.Set<String> SLUGS_RESERVADOS = java.util.Set.of(
+        "system", "admin", "login", "registro", "mi-agenda", "superadmin", "pago", "api",
+        "uploads", "assets", "images", "data", "categorias");
+
     private final TenantRepository tenantRepo;
     private final NegocioConfigRepository configRepo;
     private final UsuarioRepository usuarioRepo;
@@ -53,6 +57,10 @@ public class RegistroService {
         if (slug.isBlank())
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                 "El nombre del negocio no genera un identificador válido. Usá letras o números.");
+
+        if (SLUGS_RESERVADOS.contains(slug))
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                "Ese nombre no está disponible. Probá con uno diferente.");
 
         if (tenantRepo.existsById(slug))
             throw new ResponseStatusException(HttpStatus.CONFLICT,
@@ -96,6 +104,7 @@ public class RegistroService {
             LocalDate vencimiento = LocalDate.now().plusMonths(codigoEntidad.getTipo().meses);
             codigoEntidad.setFechaVencimiento(vencimiento);
             tenant.setFechaVencimientoSuscripcion(vencimiento);
+            tenant.setPlanTipo(codigoEntidad.getTipo());
             tenantRepo.save(tenant);
         }
         codigoRepo.save(codigoEntidad);

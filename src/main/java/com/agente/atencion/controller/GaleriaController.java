@@ -30,6 +30,7 @@ public class GaleriaController {
         long total = galeriaRepository.countByTenantIdAndActivoTrue(tenantId);
         if (total >= 10) return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(java.util.Map.of("error", "Límite de 10 imágenes por galería alcanzado."));
+        galeria.setId(null);
         galeria.setTenantId(tenantId);
         return ResponseEntity.ok(galeriaRepository.save(galeria));
     }

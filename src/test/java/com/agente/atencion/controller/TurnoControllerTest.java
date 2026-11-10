@@ -95,25 +95,6 @@ class TurnoControllerTest {
     }
 
     @Test
-    void post_sinBarberoId_guardaSinValidarDisponibilidad() throws Exception {
-        Turno entrada = new Turno();
-        entrada.setPaciente("Carlos");
-        entrada.setFecha(LocalDate.of(2026, 9, 23));
-        entrada.setHora("10:00");
-
-        Turno guardado = new Turno();
-        guardado.setId(7L);
-        guardado.setPaciente("Carlos");
-        when(turnoRepository.save(any())).thenReturn(guardado);
-
-        mvc.perform(post("/api/v1/turnos/" + TENANT)
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(json.writeValueAsString(entrada)))
-            .andExpect(status().isOk())
-            .andExpect(jsonPath("$.id").value(7));
-    }
-
-    @Test
     void get_conFecha_retornaListaFiltrada() throws Exception {
         when(turnoRepository.findByTenantIdAndFecha(TENANT, LocalDate.of(2026, 9, 23)))
             .thenReturn(List.of());

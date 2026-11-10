@@ -29,6 +29,7 @@ public class ServicioController {
                                            @RequestBody Servicio servicio,
                                            Authentication auth) {
         if (!AuthUtils.isAdmin(auth, tenantId)) return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        servicio.setId(null);
         servicio.setTenantId(tenantId);
         servicio.setActivo(true);
         return ResponseEntity.ok(servicioRepository.save(servicio));

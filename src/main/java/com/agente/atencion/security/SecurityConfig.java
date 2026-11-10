@@ -38,6 +38,15 @@ public class SecurityConfig {
                 // Siempre públicos
                 .requestMatchers(HttpMethod.POST, "/api/registro").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/plan-precios").permitAll()
+                // Pagos: el cliente no está logueado al pagar; el webhook lo valida la firma de la pasarela
+                .requestMatchers(HttpMethod.POST,
+                    "/api/pagos/mercadopago/orden",
+                    "/api/pagos/mercadopago/orden/*/verificar",
+                    "/api/pagos/webhook/mercadopago",
+                    "/api/pagos/paypal/orden",
+                    "/api/pagos/paypal/orden/*/capturar",
+                    "/api/pagos/webhook/paypal").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/pagos/orden/*").permitAll()
                 .requestMatchers("/api/auth/**").permitAll()
                 .requestMatchers("/api/superadmin/**").hasRole("SUPER_ADMIN")
                 .requestMatchers("/api/v1/chat/**").permitAll()

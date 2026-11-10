@@ -5,6 +5,8 @@ import com.agente.atencion.entity.Tenant;
 import com.agente.atencion.repository.BarberoRepository;
 import com.agente.atencion.repository.ServicioRepository;
 import com.agente.atencion.tools.NegocioTools;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.server.ResponseStatusException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.client.ChatClient;
@@ -38,7 +40,8 @@ public class AgenteService {
 
     public String chat(String tenantId, String sessionId, String mensaje) {
         Tenant tenant = tenantConfigService.getTenant(tenantId);
-        if (tenant == null) throw new RuntimeException("Negocio no encontrado: " + tenantId);
+        if (tenant == null) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Negocio no encontrado.");
+        if (SuscripcionService.estado(tenant) != SuscripcionService.EstadoAcceso.ACTIVO) throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Barbería desactivada");
 
         String sessionKey = tenantId + "-" + sessionId;
         sessionTouched.put(sessionKey, System.currentTimeMillis());

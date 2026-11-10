@@ -2,6 +2,7 @@ package com.agente.atencion.security;
 
 import com.agente.atencion.repository.TenantRepository;
 import com.agente.atencion.repository.UsuarioRepository;
+import com.agente.atencion.service.SuscripcionService;
 import io.jsonwebtoken.Claims;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -45,12 +46,14 @@ public class JwtFilter extends OncePerRequestFilter {
 
                 // SUPER_ADMIN (tenantId="system") no está asociado a ningún tenant
                 if (!"system".equals(tenantId)) {
-                    boolean activo = tenantRepo.findById(tenantId)
-                        .map(t -> t.isActivo()).orElse(false);
-                    if (!activo) {
+                    var estado = tenantRepo.findById(tenantId)
+                        .map(SuscripcionService::estado).orElse(SuscripcionService.EstadoAcceso.DESACTIVADO);
+                    if (estado != SuscripcionService.EstadoAcceso.ACTIVO) {
                         res.setStatus(HttpServletResponse.SC_FORBIDDEN);
                         res.setContentType("application/json");
-                        res.getWriter().write("{\"error\":\"Barbería desactivada\",\"code\":\"TENANT_INACTIVE\"}");
+                        res.getWriter().write(estado == SuscripcionService.EstadoAcceso.VENCIDO
+                            ? "{\"error\":\"La suscripción de tu barbería venció. Renová tu plan para continuar.\",\"code\":\"SUBSCRIPTION_EXPIRED\"}"
+                            : "{\"error\":\"Barbería desactivada\",\"code\":\"TENANT_INACTIVE\"}");
                         return;
                     }
                 }

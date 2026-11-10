@@ -11,6 +11,10 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.server.ResponseStatusException;
 
+import org.springframework.web.bind.MissingServletRequestParameterException;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+
+import java.time.format.DateTimeParseException;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -25,6 +29,12 @@ public class GlobalExceptionHandler {
             .map(e -> e.getField() + ": " + e.getDefaultMessage())
             .collect(Collectors.joining(", "));
         return ResponseEntity.badRequest().body(Map.of("error", mensaje));
+    }
+
+    @ExceptionHandler({DateTimeParseException.class, MethodArgumentTypeMismatchException.class,
+                       MissingServletRequestParameterException.class})
+    public ResponseEntity<Map<String, Object>> handleParametroInvalido(Exception ex) {
+        return ResponseEntity.badRequest().body(Map.of("error", "Parámetro inválido o faltante."));
     }
 
     @ExceptionHandler(IllegalArgumentException.class)

@@ -1,6 +1,7 @@
 package com.agente.atencion.controller;
 
 import com.agente.atencion.entity.BloqueoHorario;
+import com.agente.atencion.repository.BarberoRepository;
 import com.agente.atencion.repository.BloqueoHorarioRepository;
 import com.agente.atencion.security.AuthUtils;
 import com.agente.atencion.security.UsuarioAutenticado;
@@ -20,14 +21,17 @@ public class BloqueoController {
 
     private static final Logger log = LoggerFactory.getLogger(BloqueoController.class);
     @Autowired private BloqueoHorarioRepository bloqueoRepository;
+    @Autowired private BarberoRepository barberoRepository;
 
     @GetMapping("/{tenantId}")
-    public List<BloqueoHorario> listar(@PathVariable String tenantId,
-                                        @RequestParam(required = false) Long barberoId) {
+    public ResponseEntity<List<BloqueoHorario>> listar(@PathVariable String tenantId,
+                                                        @RequestParam(required = false) Long barberoId,
+                                                        Authentication auth) {
+        if (!AuthUtils.isAdmin(auth, tenantId)) return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         if (barberoId != null) {
-            return bloqueoRepository.findByTenantIdAndBarberoId(tenantId, barberoId);
+            return ResponseEntity.ok(bloqueoRepository.findByTenantIdAndBarberoId(tenantId, barberoId));
         }
-        return bloqueoRepository.findByTenantId(tenantId);
+        return ResponseEntity.ok(bloqueoRepository.findByTenantId(tenantId));
     }
 
     @PostMapping("/{tenantId}")
@@ -39,6 +43,11 @@ public class BloqueoController {
             log.warn("FORBIDDEN crear-bloqueo tenant={}", tenantId);
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
+        if (bloqueo.getBarberoId() == null || barberoRepository.findById(bloqueo.getBarberoId())
+                .filter(b -> tenantId.equals(b.getTenantId())).isEmpty()) {
+            return ResponseEntity.badRequest().build();
+        }
+        bloqueo.setId(null);
         bloqueo.setTenantId(tenantId);
         BloqueoHorario saved = bloqueoRepository.save(bloqueo);
         log.info("bloqueo-creado tenant={} barbero={} fecha={}", tenantId, saved.getBarberoId(), saved.getFecha());
@@ -81,6 +90,7 @@ public class BloqueoController {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
         if (!tenantId.equals(u.tenantId())) return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        bloqueo.setId(null);
         bloqueo.setTenantId(u.tenantId()); // siempre del JWT, nunca del body ni del path
         bloqueo.setBarberoId(u.barberoId());
         return ResponseEntity.ok(bloqueoRepository.save(bloqueo));

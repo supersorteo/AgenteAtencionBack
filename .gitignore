@@ -7,4 +7,6 @@ target/
 !.mvn/wrapper/maven-wrapper.properties
 .env
 *.env
+.env.*
+!.env.example
 /uploads/

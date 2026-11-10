@@ -4,6 +4,7 @@ import com.agente.atencion.entity.NegocioConfig;
 import com.agente.atencion.repository.NegocioConfigRepository;
 import com.agente.atencion.repository.TenantRepository;
 import com.agente.atencion.security.UsuarioAutenticado;
+import com.agente.atencion.service.SuscripcionService;
 import com.agente.atencion.service.TenantClockService;
 import com.agente.atencion.service.TenantConfigService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -27,7 +28,7 @@ public class NegocioConfigController {
     public ResponseEntity<?> get(@PathVariable String tenantId) {
         return tenantRepo.findById(tenantId)
             .map(tenant -> {
-                if (!tenant.isActivo()) {
+                if (SuscripcionService.estado(tenant) != SuscripcionService.EstadoAcceso.ACTIVO) {
                     return ResponseEntity.status(HttpStatus.FORBIDDEN)
                         .body((Object) Map.of("error", "Barbería desactivada", "code", "TENANT_INACTIVE"));
                 }

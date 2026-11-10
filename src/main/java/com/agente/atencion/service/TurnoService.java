@@ -1,6 +1,7 @@
 package com.agente.atencion.service;
 
 import com.agente.atencion.dto.TurnoCrearRequest;
+import com.agente.atencion.entity.Tenant;
 import com.agente.atencion.entity.Turno;
 import com.agente.atencion.repository.BarberoRepository;
 import com.agente.atencion.repository.TurnoRepository;
@@ -22,11 +23,15 @@ public class TurnoService {
     @Autowired private BarberoRepository barberoRepository;
     @Autowired private DisponibilidadService disponibilidadService;
     @Autowired private TenantClockService tenantClockService;
+    @Autowired private TenantConfigService tenantConfigService;
 
     @Transactional
     @CacheEvict(value = "disponibilidad", allEntries = true)
     public Turno crear(String tenantId, TurnoCrearRequest request) {
-        if (request.fecha() == null || request.fecha().isBefore(LocalDate.now(tenantClockService.clockFor(tenantId)))) {
+        Tenant tenant = tenantConfigService.getTenant(tenantId);
+        if (tenant == null) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Negocio no encontrado.");
+        if (SuscripcionService.estado(tenant) != SuscripcionService.EstadoAcceso.ACTIVO) throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Barbería desactivada");
+        if (request.fecha().isBefore(LocalDate.now(tenantClockService.clockFor(tenantId)))) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "No se pueden crear reservas en fechas pasadas.");
         }
         Turno turno = new Turno();
@@ -39,16 +44,18 @@ public class TurnoService {
         turno.setTelefono(request.telefono());
         turno.setEstado("RESERVADO");
 
-        if (turno.getBarberoId() != null && turno.getServicio() != null && turno.getHora() != null) {
-            if (barberoRepository.bloquearParaReserva(tenantId, turno.getBarberoId()).isEmpty()) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "El barbero no está disponible para este negocio.");
-            }
-            int duracion = disponibilidadService.obtenerDuracion(tenantId, turno.getServicio());
-            String horaFin = disponibilidadService.calcularHoraFin(turno.getHora(), duracion);
-            turno.setHoraFin(horaFin);
-            if (!disponibilidadService.validar(turno.getBarberoId(), turno.getFecha(), turno.getHora(), horaFin)) {
-                throw new ResponseStatusException(HttpStatus.CONFLICT, "El horario ya no está disponible. Por favor elegí otro.");
-            }
+        if (barberoRepository.bloquearParaReserva(tenantId, turno.getBarberoId()).isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "El barbero no está disponible para este negocio.");
+        }
+        int duracion = disponibilidadService.buscarDuracion(tenantId, turno.getServicio())
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "El servicio no existe."));
+        if (!disponibilidadService.slotValido(tenantId, turno.getBarberoId(), turno.getFecha(), turno.getHora(), duracion)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "El horario elegido no es válido para este barbero.");
+        }
+        String horaFin = disponibilidadService.calcularHoraFin(turno.getHora(), duracion);
+        turno.setHoraFin(horaFin);
+        if (!disponibilidadService.validar(turno.getBarberoId(), turno.getFecha(), turno.getHora(), horaFin)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "El horario ya no está disponible. Por favor elegí otro.");
         }
         return turnoRepository.save(turno);
     }

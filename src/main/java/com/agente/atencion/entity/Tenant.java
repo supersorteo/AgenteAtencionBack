@@ -18,4 +18,9 @@ public class Tenant {
     private Boolean tourVisto = false;
     private LocalDate fechaVencimientoSuscripcion;
     private LocalDate fechaRegistro;
+    @Enumerated(EnumType.STRING)
+    @Column(name = "plan_tipo", length = 20)
+    private TipoCodigo planTipo;
+    @Column(length = 3)
+    private String moneda;
 }

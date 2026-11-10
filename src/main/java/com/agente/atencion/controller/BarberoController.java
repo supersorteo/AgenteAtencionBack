@@ -122,8 +122,10 @@ public class BarberoController {
 
     // Horario semanal del barbero
     @GetMapping("/{tenantId}/{id}/horario")
-    public List<HorarioBarbero> getHorario(@PathVariable Long id) {
-        return horarioRepository.findByBarberoId(id);
+    public ResponseEntity<List<HorarioBarbero>> getHorario(@PathVariable String tenantId, @PathVariable Long id) {
+        if (barberoRepository.findById(id).filter(b -> tenantId.equals(b.getTenantId())).isEmpty())
+            return ResponseEntity.notFound().build();
+        return ResponseEntity.ok(horarioRepository.findByBarberoId(id));
     }
 
     @PostMapping("/{tenantId}/{id}/horario")

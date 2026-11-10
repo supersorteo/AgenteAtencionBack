@@ -19,6 +19,9 @@ public class TenantClockService {
     private final ConcurrentHashMap<String, Clock> cache = new ConcurrentHashMap<>();
 
     public Clock clockFor(String tenantId) {
+        Clock cached = cache.get(tenantId);
+        if (cached != null) return cached;
+        if (!configRepository.existsById(tenantId)) return Clock.system(ZoneId.of(DEFAULT_ZONE));
         return cache.computeIfAbsent(tenantId, this::loadClock);
     }
 

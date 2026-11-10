@@ -10,6 +10,8 @@ import com.agente.atencion.entity.TipoCodigo;
 import com.agente.atencion.repository.*;
 import jakarta.validation.Valid;
 import com.agente.atencion.service.CloudinaryService;
+import com.agente.atencion.service.SuscripcionService;
+import com.agente.atencion.service.TenantConfigService;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.http.ResponseEntity;
 import org.springframework.transaction.annotation.Transactional;
@@ -44,6 +46,8 @@ public class SuperAdminController {
     private final NegocioConfigRepository negocioConfigRepo;
     private final CloudinaryService cloudinaryService;
     private final PasswordEncoder encoder;
+    private final SuscripcionService suscripcionService;
+    private final TenantConfigService tenantConfigService;
 
     public SuperAdminController(TenantRepository tenantRepo, UsuarioRepository usuarioRepo,
                                 CodigoInvitacionRepository codigoRepo, PlanPrecioRepository planPrecioRepo,
@@ -52,7 +56,10 @@ public class SuperAdminController {
                                 TurnoRepository turnoRepo, ServicioRepository servicioRepo,
                                 CategoriaServicioRepository categoriaServicioRepo,
                                 GaleriaRepository galeriaRepo, NegocioConfigRepository negocioConfigRepo,
-                                CloudinaryService cloudinaryService, PasswordEncoder encoder) {
+                                CloudinaryService cloudinaryService, PasswordEncoder encoder,
+                                SuscripcionService suscripcionService, TenantConfigService tenantConfigService) {
+        this.suscripcionService = suscripcionService;
+        this.tenantConfigService = tenantConfigService;
         this.tenantRepo = tenantRepo;
         this.usuarioRepo = usuarioRepo;
         this.codigoRepo = codigoRepo;
@@ -120,6 +127,7 @@ public class SuperAdminController {
             .map(t -> {
                 t.setActivo(!t.isActivo());
                 tenantRepo.save(t);
+                tenantConfigService.evictTenant(slug);
                 return ResponseEntity.ok(Map.of("activo", t.isActivo(), "slug", slug));
             })
             .orElse(ResponseEntity.notFound().build());
@@ -217,6 +225,8 @@ public class SuperAdminController {
         usuarioRepo.deleteByTenantId(slug);
         negocioConfigRepo.deleteById(slug);
         tenantRepo.deleteById(slug);
+        tenantConfigService.evictTenant(slug);
+        tenantConfigService.evictNegocioConfig(slug);
 
         // Eliminar el código de invitación que usó este tenant
         if (adminUsername != null)
@@ -238,7 +248,11 @@ public class SuperAdminController {
         String nuevaPass = body != null ? body.get("password") : null;
         if (nuevaPass == null || nuevaPass.isBlank())
             return ResponseEntity.badRequest().body(Map.of("error", "password es obligatorio"));
+        if (nuevaPass.length() < 8)
+            return ResponseEntity.badRequest().body(Map.of("error", "La contraseña debe tener al menos 8 caracteres"));
         admin.setPassword(encoder.encode(nuevaPass));
+        admin.setPasswordChangedAt(java.time.LocalDateTime.now(java.time.ZoneOffset.UTC)
+            .truncatedTo(java.time.temporal.ChronoUnit.SECONDS));
         usuarioRepo.save(admin);
         return ResponseEntity.ok(Map.of(
             "username", admin.getUsername(),
@@ -255,11 +269,8 @@ public class SuperAdminController {
         if (req.fechaInicio() == null || req.tipoPlan() == null)
             return ResponseEntity.badRequest().body(Map.of("error", "fechaInicio y tipoPlan son requeridos."));
         return tenantRepo.findById(slug)
-            .map(t -> {
-                t.setFechaRegistro(req.fechaInicio());
-                java.time.LocalDate vencimiento = req.fechaInicio().plusMonths(req.tipoPlan().meses);
-                t.setFechaVencimientoSuscripcion(vencimiento);
-                tenantRepo.save(t);
+            .map(existente -> {
+                Tenant t = suscripcionService.fijar(slug, req.fechaInicio(), req.tipoPlan());
                 String adminUsername = usuarioRepo.findByTenantIdAndActivoTrue(slug).stream()
                     .filter(u -> "ADMIN".equals(u.getRol()))
                     .map(u -> u.getUsername())

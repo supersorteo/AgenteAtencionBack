@@ -8,6 +8,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
+import org.springframework.web.server.ResponseStatusException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -24,6 +25,8 @@ public class ChatController {
         try {
             String respuesta = agenteService.chat(request.tenantId(), request.sessionId(), request.mensaje());
             return ResponseEntity.ok(new ChatResponse(respuesta));
+        } catch (ResponseStatusException e) {
+            throw e;
         } catch (Exception e) {
             log.error("No se pudo completar la solicitud al agente", e);
             return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)

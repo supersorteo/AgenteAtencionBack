@@ -4,6 +4,7 @@ import com.agente.atencion.entity.Usuario;
 import com.agente.atencion.repository.TenantRepository;
 import com.agente.atencion.repository.UsuarioRepository;
 import com.agente.atencion.security.JwtUtil;
+import com.agente.atencion.service.SuscripcionService;
 import com.agente.atencion.security.UsuarioAutenticado;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -66,9 +67,14 @@ public class AuthController {
         var u = usuarioOpt.get();
 
         if (!"SUPER_ADMIN".equals(u.getRol()) && !"system".equals(u.getTenantId())) {
-            boolean activo = tenantRepo.findById(u.getTenantId())
-                .map(t -> t.isActivo()).orElse(false);
-            if (!activo) {
+            var estado = tenantRepo.findById(u.getTenantId())
+                .map(SuscripcionService::estado).orElse(SuscripcionService.EstadoAcceso.DESACTIVADO);
+            if (estado == SuscripcionService.EstadoAcceso.VENCIDO) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(Map.of("error", "La suscripción de tu barbería venció. Renová tu plan para continuar.",
+                                 "code", "SUBSCRIPTION_EXPIRED"));
+            }
+            if (estado != SuscripcionService.EstadoAcceso.ACTIVO) {
                 return ResponseEntity.status(HttpStatus.FORBIDDEN)
                     .body(Map.of("error", "Tu barbería está desactivada",
                                  "code", "TENANT_INACTIVE"));

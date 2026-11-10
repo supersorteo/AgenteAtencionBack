@@ -111,6 +111,26 @@ public class DisponibilidadService {
             .orElse(30);
     }
 
+    public OptionalInt buscarDuracion(String tenantId, String servicioNombre) {
+        return servicioRepository.findByTenantIdAndActivoTrue(tenantId).stream()
+            .filter(s -> s.getNombre().equalsIgnoreCase(servicioNombre))
+            .mapToInt(s -> s.getDuracionMinutos())
+            .findFirst();
+    }
+
+    public boolean slotValido(String tenantId, Long barberoId, LocalDate fecha, String hora, int duracionMinutos) {
+        LocalTime inicioSlot = LocalTime.parse(hora, FMT);
+        if (!fecha.atTime(inicioSlot).isAfter(LocalDateTime.now(tenantClockService.clockFor(tenantId)))) return false;
+        return horarioRepository.findByBarberoIdAndDiaSemana(barberoId, fecha.getDayOfWeek().getValue())
+            .map(h -> {
+                int ini = LocalTime.parse(h.getHoraInicio(), FMT).toSecondOfDay() / 60;
+                int fin = LocalTime.parse(h.getHoraFin(), FMT).toSecondOfDay() / 60;
+                int minuto = inicioSlot.toSecondOfDay() / 60;
+                return minuto >= ini && minuto + duracionMinutos <= fin && (minuto - ini) % INTERVALO_MINUTOS == 0;
+            })
+            .orElse(false);
+    }
+
     public String calcularHoraFin(String hora, int duracionMinutos) {
         return LocalTime.parse(hora, FMT).plusMinutes(duracionMinutos).format(FMT);
     }

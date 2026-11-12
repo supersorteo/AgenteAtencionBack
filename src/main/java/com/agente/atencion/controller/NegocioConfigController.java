@@ -41,7 +41,7 @@ public class NegocioConfigController {
 
     @PutMapping("/{tenantId}")
     public ResponseEntity<NegocioConfig> save(@PathVariable String tenantId,
-                                               @RequestBody NegocioConfig config,
+                                               @jakarta.validation.Valid @RequestBody NegocioConfig config,
                                                Authentication auth) {
         if (!(auth.getPrincipal() instanceof UsuarioAutenticado u)
                 || !tenantId.equals(u.tenantId())

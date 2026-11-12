@@ -63,6 +63,10 @@ public class UsuarioAdminController {
 
         if (username == null || username.isBlank() || password == null || password.isBlank())
             return ResponseEntity.badRequest().body(Map.of("error", "username y password son obligatorios"));
+        if (username.length() < 3 || username.length() > 50)
+            return ResponseEntity.badRequest().body(Map.of("error", "El usuario debe tener entre 3 y 50 caracteres"));
+        if (password.length() < 8 || password.length() > 72)
+            return ResponseEntity.badRequest().body(Map.of("error", "La contraseña debe tener entre 8 y 72 caracteres"));
         if (barberoId != null && barberoRepo.findById(barberoId)
                 .filter(b -> b.getTenantId().equals(tenantId)).isEmpty())
             return ResponseEntity.badRequest().body(Map.of("error", "Barbero no encontrado"));

@@ -28,7 +28,7 @@ public class ServicioController {
     @PostMapping("/{tenantId}")
     @CacheEvict(value = "servicios", key = "#tenantId")
     public ResponseEntity<Servicio> crear(@PathVariable String tenantId,
-                                           @RequestBody Servicio servicio,
+                                           @jakarta.validation.Valid @RequestBody Servicio servicio,
                                            Authentication auth) {
         if (!AuthUtils.isAdmin(auth, tenantId)) return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         servicio.setId(null);
@@ -41,7 +41,7 @@ public class ServicioController {
     @CacheEvict(value = "servicios", key = "#tenantId")
     public ResponseEntity<Servicio> actualizar(@PathVariable String tenantId,
                                                 @PathVariable Long id,
-                                                @RequestBody Servicio datos,
+                                                @jakarta.validation.Valid @RequestBody Servicio datos,
                                                 Authentication auth) {
         if (!AuthUtils.isAdmin(auth, tenantId)) return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         return servicioRepository.findById(id)

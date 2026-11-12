@@ -35,6 +35,7 @@ public class NegocioController {
         if (!AuthUtils.isAdmin(auth, tenantId)) return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         String ctx = body.get("contexto");
         if (ctx == null || ctx.isBlank()) return ResponseEntity.badRequest().build();
+        if (ctx.length() > 4000) return ResponseEntity.badRequest().build();
         return tenantRepository.findById(tenantId).map(t -> {
             t.setContexto(ctx);
             Tenant saved = tenantRepository.save(t);

@@ -102,7 +102,8 @@ public class JwtFilter extends OncePerRequestFilter {
     // GET anónimo de /api/v1/<recurso>/<tenantId>: un negocio desactivado o vencido no expone su catálogo
     private boolean catalogoPublicoDeNegocioInactivo(HttpServletRequest req) {
         if (!"GET".equals(req.getMethod())) return false;
-        String[] partes = req.getRequestURI().split("/");
+        // Misma ruta decodificada y normalizada que usa Spring MVC: con la URI cruda, "/servicios/%74%31" esquivaría el chequeo
+        String[] partes = org.springframework.web.util.UrlPathHelper.defaultInstance.getPathWithinApplication(req).split("/");
         // ["", "api", "v1", recurso, tenantId, ...]
         if (partes.length < 5 || !"api".equals(partes[1]) || !"v1".equals(partes[2]) || !RECURSOS_PUBLICOS.contains(partes[3])) {
             return false;

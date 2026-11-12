@@ -24,7 +24,7 @@ public class GaleriaController {
 
     @PostMapping("/{tenantId}")
     public ResponseEntity<?> crear(@PathVariable String tenantId,
-                                   @RequestBody Galeria galeria,
+                                   @jakarta.validation.Valid @RequestBody Galeria galeria,
                                    Authentication auth) {
         if (!AuthUtils.isAdmin(auth, tenantId)) return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         long total = galeriaRepository.countByTenantIdAndActivoTrue(tenantId);
@@ -38,7 +38,7 @@ public class GaleriaController {
     @PutMapping("/{tenantId}/{id}")
     public ResponseEntity<Galeria> actualizar(@PathVariable String tenantId,
                                                @PathVariable Long id,
-                                               @RequestBody Galeria datos,
+                                               @jakarta.validation.Valid @RequestBody Galeria datos,
                                                Authentication auth) {
         if (!AuthUtils.isAdmin(auth, tenantId)) return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         return galeriaRepository.findById(id)

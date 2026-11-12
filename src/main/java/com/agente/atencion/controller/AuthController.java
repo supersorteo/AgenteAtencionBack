@@ -68,7 +68,7 @@ public class AuthController {
         String tenantId = body.get("tenantId");
         String ip = http.getRemoteAddr();
 
-        if (intentos.bloqueado(ip, username)) {
+        if (!intentos.permitir(ip, username)) {
             return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
                 .body(Map.of("error", "Demasiados intentos fallidos. Probá de nuevo en 15 minutos.", "code", "LOGIN_LOCKED"));
         }
@@ -78,7 +78,6 @@ public class AuthController {
             .filter(u -> perteneceAlTenant(u, tenantId));
 
         if (usuarioOpt.isEmpty()) {
-            intentos.fallo(ip, username);
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                 .body(Map.of("error", "Credenciales incorrectas"));
         }

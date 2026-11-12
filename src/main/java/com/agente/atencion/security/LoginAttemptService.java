@@ -13,40 +13,35 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class LoginAttemptService {
 
     static final int MAX_POR_IP_Y_USUARIO = 5;
-    // Tope más alto por usuario solo: frena ataques distribuidos sin permitir que un tercero bloquee la cuenta con 5 intentos
+    // Tope por usuario entre todas las IPs: frena ataques distribuidos
     static final int MAX_POR_USUARIO = 25;
 
-    private final Cache<String, AtomicInteger> fallos;
+    private final Cache<String, AtomicInteger> intentos;
+    // IPs desde las que ese usuario ya inició sesión bien: el tope por usuario no las bloquea, así un atacante no deja afuera al dueño de la cuenta
+    private final Cache<String, Boolean> conocidas;
 
     public LoginAttemptService() {
         this(Ticker.systemTicker());
     }
 
     LoginAttemptService(Ticker reloj) {
-        this.fallos = Caffeine.newBuilder()
-            .maximumSize(50_000)
-            .expireAfterWrite(Duration.ofMinutes(15))
-            .ticker(reloj)
-            .build();
+        this.intentos = Caffeine.newBuilder().maximumSize(50_000).expireAfterWrite(Duration.ofMinutes(15)).ticker(reloj).build();
+        this.conocidas = Caffeine.newBuilder().maximumSize(50_000).expireAfterWrite(Duration.ofDays(30)).ticker(reloj).build();
     }
 
-    public boolean bloqueado(String ip, String usuario) {
-        return cuenta(clavePar(ip, usuario)) >= MAX_POR_IP_Y_USUARIO
-            || cuenta(claveUsuario(usuario)) >= MAX_POR_USUARIO;
-    }
-
-    public void fallo(String ip, String usuario) {
-        fallos.get(clavePar(ip, usuario), k -> new AtomicInteger()).incrementAndGet();
-        fallos.get(claveUsuario(usuario), k -> new AtomicInteger()).incrementAndGet();
+    // Reserva el intento antes de comprobar la clave, de forma atómica: varias peticiones paralelas no pueden colarse entre la lectura y la escritura
+    public boolean permitir(String ip, String usuario) {
+        int delPar = intentos.get(clavePar(ip, usuario), k -> new AtomicInteger()).incrementAndGet();
+        int delUsuario = intentos.get(claveUsuario(usuario), k -> new AtomicInteger()).incrementAndGet();
+        if (delPar > MAX_POR_IP_Y_USUARIO) return false;
+        return delUsuario <= MAX_POR_USUARIO || conocidas.getIfPresent(clavePar(ip, usuario)) != null;
     }
 
     public void exito(String ip, String usuario) {
-        fallos.invalidate(clavePar(ip, usuario));
-    }
-
-    private int cuenta(String clave) {
-        AtomicInteger n = fallos.getIfPresent(clave);
-        return n == null ? 0 : n.get();
+        intentos.invalidate(clavePar(ip, usuario));
+        AtomicInteger delUsuario = intentos.getIfPresent(claveUsuario(usuario));
+        if (delUsuario != null) delUsuario.updateAndGet(n -> Math.max(0, n - 1));
+        conocidas.put(clavePar(ip, usuario), Boolean.TRUE);
     }
 
     private static String normalizar(String usuario) {

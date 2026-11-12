@@ -37,7 +37,7 @@ public class BloqueoController {
 
     @PostMapping("/{tenantId}")
     public ResponseEntity<?> crear(@PathVariable String tenantId,
-                                    @RequestBody BloqueoHorario bloqueo,
+                                    @jakarta.validation.Valid @RequestBody BloqueoHorario bloqueo,
                                     Authentication auth) {
         if (!AuthUtils.isAdmin(auth, tenantId)) {
             log.warn("FORBIDDEN crear-bloqueo tenant={}", tenantId);
@@ -84,7 +84,7 @@ public class BloqueoController {
 
     @PostMapping("/{tenantId}/mios")
     public ResponseEntity<BloqueoHorario> crearMio(@PathVariable String tenantId,
-                                                    @RequestBody BloqueoHorario bloqueo,
+                                                    @jakarta.validation.Valid @RequestBody BloqueoHorario bloqueo,
                                                     Authentication auth) {
         if (!(auth.getPrincipal() instanceof UsuarioAutenticado u) || u.barberoId() == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();

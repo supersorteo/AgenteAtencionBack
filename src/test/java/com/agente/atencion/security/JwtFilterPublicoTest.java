@@ -64,6 +64,14 @@ class JwtFilterPublicoTest {
     }
 
     @Test
+    void unTenantCodificadoConPorcentajeNoEsquivaElChequeo() throws Exception {
+        when(tenants.getTenant("t1")).thenReturn(tenant(true, LocalDate.now().minusDays(30)));
+
+        assertEquals(403, pedir("GET", "/api/v1/servicios/%74%31", new MockFilterChain()).getStatus());
+        assertEquals(403, pedir("GET", "/api/v1/servicios/t1;x=1", new MockFilterChain()).getStatus());
+    }
+
+    @Test
     void elCatalogoDeUnNegocioDesactivadoTampoco() throws Exception {
         when(tenants.getTenant("t1")).thenReturn(tenant(false, null));
 

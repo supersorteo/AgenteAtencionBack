@@ -25,7 +25,7 @@ public class CategoriaServicioController {
 
     @PostMapping("/{tenantId}")
     public ResponseEntity<CategoriaServicio> crear(@PathVariable String tenantId,
-                                                    @RequestBody CategoriaServicio cat,
+                                                    @jakarta.validation.Valid @RequestBody CategoriaServicio cat,
                                                     Authentication auth) {
         if (!AuthUtils.isAdmin(auth, tenantId)) return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         cat.setId(null);
@@ -37,7 +37,7 @@ public class CategoriaServicioController {
     @PutMapping("/{tenantId}/{id}")
     public ResponseEntity<CategoriaServicio> actualizar(@PathVariable String tenantId,
                                                          @PathVariable Long id,
-                                                         @RequestBody CategoriaServicio datos,
+                                                         @jakarta.validation.Valid @RequestBody CategoriaServicio datos,
                                                          Authentication auth) {
         if (!AuthUtils.isAdmin(auth, tenantId)) return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         return repo.findById(id)

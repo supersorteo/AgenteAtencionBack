@@ -38,7 +38,7 @@ public class BarberoController {
     }
 
     @PostMapping("/{tenantId}")
-    public ResponseEntity<Barbero> crear(@PathVariable String tenantId, @RequestBody Barbero barbero,
+    public ResponseEntity<Barbero> crear(@PathVariable String tenantId, @jakarta.validation.Valid @RequestBody Barbero barbero,
                                           Authentication auth) {
         if (!AuthUtils.isAdmin(auth, tenantId)) {
             log.warn("FORBIDDEN crear-barbero tenant={}", tenantId);
@@ -54,7 +54,7 @@ public class BarberoController {
     @CacheEvict(value = "barberos", key = "#tenantId")
     public ResponseEntity<Barbero> actualizar(@PathVariable String tenantId,
                                                @PathVariable Long id,
-                                               @RequestBody Barbero datos,
+                                               @jakarta.validation.Valid @RequestBody Barbero datos,
                                                Authentication auth) {
         if (!AuthUtils.isAdmin(auth, tenantId)) return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         return barberoRepository.findById(id)
@@ -110,7 +110,7 @@ public class BarberoController {
     @PatchMapping("/{tenantId}/mi-perfil")
     @CacheEvict(value = "barberos", key = "#tenantId")
     public ResponseEntity<Barbero> actualizarMiPerfil(@PathVariable String tenantId,
-                                                       @RequestBody Barbero datos,
+                                                       @jakarta.validation.Valid @RequestBody Barbero datos,
                                                        Authentication auth) {
         if (!(auth.getPrincipal() instanceof UsuarioAutenticado u) || u.barberoId() == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
@@ -137,7 +137,7 @@ public class BarberoController {
     @PostMapping("/{tenantId}/{id}/horario")
     public ResponseEntity<HorarioBarbero> setHorarioDia(@PathVariable String tenantId,
                                                           @PathVariable Long id,
-                                                          @RequestBody HorarioBarbero horario,
+                                                          @jakarta.validation.Valid @RequestBody HorarioBarbero horario,
                                                           Authentication auth) {
         if (!AuthUtils.isAdmin(auth, tenantId)) return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         if (barberoRepository.findById(id).filter(b -> b.getTenantId().equals(tenantId)).isEmpty())

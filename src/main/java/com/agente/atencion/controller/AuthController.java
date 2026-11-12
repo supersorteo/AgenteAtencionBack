@@ -45,6 +45,8 @@ public class AuthController {
         String nueva  = body.get("nueva");
         if (actual == null || nueva == null || nueva.isBlank())
             return ResponseEntity.badRequest().body(Map.of("error", "Contraseña actual y nueva son obligatorias"));
+        if (com.agente.atencion.service.SuscripcionService.DEMO_SLUG.equals(u.tenantId()))
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("error", "En la demo no se puede cambiar la contraseña"));
         if (nueva.length() < 8 || nueva.length() > 72)
             return ResponseEntity.badRequest().body(Map.of("error", "La nueva contraseña debe tener entre 8 y 72 caracteres"));
         return repo.findByUsernameAndActivoTrue(u.username())

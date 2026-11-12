@@ -143,6 +143,10 @@ public class UsuarioAdminController {
         return usuarioRepo.findById(id)
             .filter(u -> u.getTenantId().equals(tenantId))
             .map(u -> {
+                if (com.agente.atencion.service.SuscripcionService.DEMO_SLUG.equals(tenantId) && "ADMIN".equals(u.getRol())) {
+                    return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                        .body(Map.<String, Object>of("error", "En la demo no se puede cambiar la contraseña del administrador"));
+                }
                 u.setPassword(encoder.encode(newPassword));
                 u.setPasswordChangedAt(ahoraUtc());
                 usuarioRepo.save(u);

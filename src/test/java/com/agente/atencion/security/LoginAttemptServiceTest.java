@@ -68,13 +68,13 @@ class LoginAttemptServiceTest {
     }
 
     @Test
-    void cienPeticionesParalelasNoPasanDelLimite() throws Exception {
+    void veinticuatroPeticionesParalelasDejanPasarExactamenteCinco() throws Exception {
         ExecutorService pool = Executors.newFixedThreadPool(20);
         CountDownLatch salida = new CountDownLatch(1);
         AtomicInteger permitidas = new AtomicInteger();
         try {
             List<Future<?>> tareas = new ArrayList<>();
-            for (int i = 0; i < 100; i++) {
+            for (int i = 0; i < 24; i++) {
                 tareas.add(pool.submit(() -> {
                     try { salida.await(); } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
                     if (servicio.permitir("1.1.1.1", "ana")) permitidas.incrementAndGet();

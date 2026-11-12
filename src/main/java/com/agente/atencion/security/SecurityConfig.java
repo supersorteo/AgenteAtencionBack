@@ -38,6 +38,7 @@ public class SecurityConfig {
                 // Siempre públicos
                 .requestMatchers(HttpMethod.POST, "/api/registro").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/plan-precios").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/v1/demo/credenciales").permitAll()
                 // Pagos: el cliente no está logueado al pagar; el webhook lo valida la firma de la pasarela
                 .requestMatchers(HttpMethod.POST,
                     "/api/pagos/mercadopago/orden",

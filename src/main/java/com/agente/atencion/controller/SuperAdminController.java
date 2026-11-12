@@ -33,6 +33,9 @@ public class SuperAdminController {
     private static final int LONGITUD_CODIGO = 12;
     private static final String DEMO_SLUG = "barberia-demo";
 
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.agente.atencion.service.DemoCredencialService demoCredenciales;
+
     private final TenantRepository tenantRepo;
     private final UsuarioRepository usuarioRepo;
     private final CodigoInvitacionRepository codigoRepo;
@@ -260,6 +263,8 @@ public class SuperAdminController {
             .truncatedTo(java.time.temporal.ChronoUnit.SECONDS));
         usuarioRepo.save(admin);
         authCache.evict(admin.getUsername());
+        // El login de la demo muestra estas credenciales precargadas: se mantienen al día con la contraseña nueva
+        if (DEMO_SLUG.equals(slug)) demoCredenciales.actualizar(admin.getUsername(), nuevaPass);
         return ResponseEntity.ok(Map.of(
             "username", admin.getUsername(),
             "updated", true

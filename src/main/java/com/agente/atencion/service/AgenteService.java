@@ -43,6 +43,10 @@ public class AgenteService {
         .build();
 
     public String chat(String tenantId, String sessionId, String mensaje) {
+        return chat(tenantId, sessionId, mensaje, "desconocido");
+    }
+
+    public String chat(String tenantId, String sessionId, String mensaje, String cliente) {
         Tenant tenant = tenantConfigService.getTenant(tenantId);
         if (tenant == null) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Negocio no encontrado.");
         if (SuscripcionService.estado(tenant) != SuscripcionService.EstadoAcceso.ACTIVO) throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Barbería desactivada");
@@ -87,7 +91,7 @@ public class AgenteService {
             eraEsperandoConfirmacion = true;
         }
 
-        String respuesta = chatGuard.ejecutar(tenantId, () -> {
+        String respuesta = chatGuard.ejecutar(tenantId, cliente, () -> {
             TenantContext.set(tenantId);
             try {
                 return client.prompt()

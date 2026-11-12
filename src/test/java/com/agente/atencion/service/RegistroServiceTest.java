@@ -43,7 +43,7 @@ class RegistroServiceTest {
         valido.setUsado(false);
         valido.setCreadoAt(LocalDateTime.now());
         // lenient: tests de generarSlug() no llaman registrar() y no usan estos stubs
-        lenient().when(codigoRepo.findById("BARBEROS2026")).thenReturn(Optional.of(valido));
+        lenient().when(codigoRepo.findWithLockByCodigo("BARBEROS2026")).thenReturn(Optional.of(valido));
         lenient().when(codigoRepo.save(any(CodigoInvitacion.class))).thenAnswer(i -> i.getArgument(0));
     }
 
@@ -104,7 +104,7 @@ class RegistroServiceTest {
         usado.setCodigo("USADO123");
         usado.setUsado(true);
         usado.setUsadoPorUsername("otro");
-        when(codigoRepo.findById("USADO123")).thenReturn(Optional.of(usado));
+        when(codigoRepo.findWithLockByCodigo("USADO123")).thenReturn(Optional.of(usado));
 
         var req = new RegistroRequest("Mi Barberia", "Juan", "juan", "pass1234", "USADO123");
         assertThatThrownBy(() -> sut.registrar(req))

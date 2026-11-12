@@ -45,6 +45,7 @@ public class ChatGuard {
 
     private final boolean habilitado;
     private final int maxMensajesDia;
+    private final int maxPorCliente;
     private final int fallosParaAbrir;
     private final long pausaCircuitoMs;
     private final LongSupplier reloj;
@@ -60,35 +61,45 @@ public class ChatGuard {
     public ChatGuard(@Value("${chat.habilitado:true}") boolean habilitado,
                      @Value("${chat.max-concurrentes:20}") int maxConcurrentes,
                      @Value("${chat.max-mensajes-dia:500}") int maxMensajesDia,
+                     @Value("${chat.max-mensajes-dia-por-cliente:60}") int maxPorCliente,
                      @Value("${chat.fallos-para-abrir:5}") int fallosParaAbrir,
                      @Value("${chat.pausa-circuito-segundos:30}") int pausaSegundos,
                      @Value("${chat.timeout-segundos:35}") int timeoutSegundos) {
-        this(habilitado, maxConcurrentes, maxMensajesDia, fallosParaAbrir, pausaSegundos, timeoutSegundos * 1000L, System::currentTimeMillis);
+        this(habilitado, maxConcurrentes, maxMensajesDia, maxPorCliente, fallosParaAbrir, pausaSegundos, timeoutSegundos * 1000L, System::currentTimeMillis);
     }
 
-    ChatGuard(boolean habilitado, int maxConcurrentes, int maxMensajesDia, int fallosParaAbrir,
+    ChatGuard(boolean habilitado, int maxConcurrentes, int maxMensajesDia, int maxPorCliente, int fallosParaAbrir,
               int pausaSegundos, long timeoutMs, LongSupplier reloj) {
         this.timeoutMs = timeoutMs;
         this.habilitado = habilitado;
         this.maxMensajesDia = maxMensajesDia;
+        this.maxPorCliente = maxPorCliente;
         this.fallosParaAbrir = fallosParaAbrir;
         this.pausaCircuitoMs = pausaSegundos * 1000L;
         this.reloj = reloj;
         this.concurrentes = new Semaphore(maxConcurrentes);
     }
 
-    public <T> T ejecutar(String tenantId, Supplier<T> llamada) {
+    public <T> T ejecutar(String tenantId, String cliente, Supplier<T> llamada) {
         if (!habilitado) {
             throw new Rechazo(HttpStatus.SERVICE_UNAVAILABLE, "El asistente está en mantenimiento. Escribinos por WhatsApp y te ayudamos.");
         }
         if (reloj.getAsLong() < circuitoAbiertoHasta) {
             throw new Rechazo(HttpStatus.SERVICE_UNAVAILABLE, "El asistente no está disponible en este momento. Intentá de nuevo en un rato.");
         }
-        String clave = tenantId + "_" + LocalDate.now(ZoneOffset.UTC);
-        if (mensajesPorDia.get(clave, k -> new AtomicInteger()).incrementAndGet() > maxMensajesDia) {
+        String dia = LocalDate.now(ZoneOffset.UTC).toString();
+        AtomicInteger delCliente = mensajesPorDia.get(tenantId + "_" + dia + "_c_" + cliente, k -> new AtomicInteger());
+        if (delCliente.incrementAndGet() > maxPorCliente) {
+            throw new Rechazo(HttpStatus.TOO_MANY_REQUESTS, "Llegaste al límite de consultas de hoy. Escribinos por WhatsApp o probá mañana.");
+        }
+        AtomicInteger delNegocio = mensajesPorDia.get(tenantId + "_" + dia, k -> new AtomicInteger());
+        if (delNegocio.incrementAndGet() > maxMensajesDia) {
+            delCliente.decrementAndGet();
             throw new Rechazo(HttpStatus.TOO_MANY_REQUESTS, "El asistente llegó al límite de consultas de hoy. Escribinos por WhatsApp o probá mañana.");
         }
         if (!concurrentes.tryAcquire()) {
+            delCliente.decrementAndGet();
+            delNegocio.decrementAndGet();
             throw new Rechazo(HttpStatus.SERVICE_UNAVAILABLE, "El asistente tiene mucha demanda ahora. Probá de nuevo en unos segundos.");
         }
         Future<T> tarea;

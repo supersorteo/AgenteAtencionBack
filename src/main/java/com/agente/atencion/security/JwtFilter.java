@@ -87,6 +87,27 @@ public class JwtFilter extends OncePerRequestFilter {
                 SecurityContextHolder.getContext().setAuthentication(auth);
             }
         }
+        if (SecurityContextHolder.getContext().getAuthentication() == null && catalogoPublicoDeNegocioInactivo(req)) {
+            res.setStatus(HttpServletResponse.SC_FORBIDDEN);
+            res.setContentType("application/json");
+            res.getWriter().write("{\"error\":\"Barbería no disponible\",\"code\":\"TENANT_INACTIVE\"}");
+            return;
+        }
         chain.doFilter(req, res);
+    }
+
+    private static final java.util.Set<String> RECURSOS_PUBLICOS = java.util.Set.of(
+        "servicios", "barberos", "galeria", "disponibilidad", "config", "categorias");
+
+    // GET anónimo de /api/v1/<recurso>/<tenantId>: un negocio desactivado o vencido no expone su catálogo
+    private boolean catalogoPublicoDeNegocioInactivo(HttpServletRequest req) {
+        if (!"GET".equals(req.getMethod())) return false;
+        String[] partes = req.getRequestURI().split("/");
+        // ["", "api", "v1", recurso, tenantId, ...]
+        if (partes.length < 5 || !"api".equals(partes[1]) || !"v1".equals(partes[2]) || !RECURSOS_PUBLICOS.contains(partes[3])) {
+            return false;
+        }
+        var tenant = tenantConfigService.getTenant(partes[4]);
+        return tenant != null && SuscripcionService.estado(tenant) != SuscripcionService.EstadoAcceso.ACTIVO;
     }
 }

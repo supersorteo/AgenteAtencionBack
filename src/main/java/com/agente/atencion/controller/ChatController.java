@@ -21,9 +21,9 @@ public class ChatController {
     @Autowired private AgenteService agenteService;
 
     @PostMapping("/chat")
-    public ResponseEntity<ChatResponse> chat(@RequestBody @Valid ChatRequest request) {
+    public ResponseEntity<ChatResponse> chat(@RequestBody @Valid ChatRequest request, jakarta.servlet.http.HttpServletRequest http) {
         try {
-            String respuesta = agenteService.chat(request.tenantId(), request.sessionId(), request.mensaje());
+            String respuesta = agenteService.chat(request.tenantId(), request.sessionId(), request.mensaje(), http.getRemoteAddr());
             return ResponseEntity.ok(new ChatResponse(respuesta));
         } catch (ResponseStatusException e) {
             throw e;

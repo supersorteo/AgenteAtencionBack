@@ -11,4 +11,7 @@ public interface CodigoInvitacionRepository extends JpaRepository<CodigoInvitaci
     long countByUsado(boolean usado);
     java.util.List<CodigoInvitacion> findAllByUsadoPorUsername(String username);
     long deleteByTipoIsNull();
+
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    java.util.Optional<CodigoInvitacion> findWithLockByCodigo(String codigo);
 }

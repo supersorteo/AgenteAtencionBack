@@ -18,6 +18,10 @@ public interface PagoRepository extends JpaRepository<Pago, Long> {
 
     List<Pago> findByTenantIdOrderByCreadoAtDesc(String tenantId);
 
+    @org.springframework.data.jpa.repository.Modifying
+    @Query("DELETE FROM Pago p WHERE p.estado = com.agente.atencion.entity.EstadoPago.PENDIENTE AND p.creadoAt < :limite")
+    int eliminarPendientesAnterioresA(@Param("limite") java.time.LocalDateTime limite);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT p FROM Pago p WHERE p.referencia = :referencia")
     Optional<Pago> bloquearPorReferencia(@Param("referencia") String referencia);

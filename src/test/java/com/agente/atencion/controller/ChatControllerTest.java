@@ -19,9 +19,9 @@ class ChatControllerTest {
 
     @Test
     void respuestaExitosaMantieneElContrato() {
-        when(agenteService.chat("barberia-demo", "test", "hola")).thenReturn("Hola");
+        when(agenteService.chat("barberia-demo", "test", "hola", "127.0.0.1")).thenReturn("Hola");
 
-        var response = controller.chat(new ChatRequest("barberia-demo", "test", "hola"));
+        var response = controller.chat(new ChatRequest("barberia-demo", "test", "hola"), new org.springframework.mock.web.MockHttpServletRequest());
 
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertNotNull(response.getBody());
@@ -30,10 +30,10 @@ class ChatControllerTest {
 
     @Test
     void falloDelProveedorRetorna503SinExponerDetallesInternos() {
-        when(agenteService.chat("barberia-demo", "test", "hola"))
+        when(agenteService.chat("barberia-demo", "test", "hola", "127.0.0.1"))
             .thenThrow(new RuntimeException("Provider model access denied: internal-detail"));
 
-        var response = controller.chat(new ChatRequest("barberia-demo", "test", "hola"));
+        var response = controller.chat(new ChatRequest("barberia-demo", "test", "hola"), new org.springframework.mock.web.MockHttpServletRequest());
 
         assertEquals(HttpStatus.SERVICE_UNAVAILABLE, response.getStatusCode());
         assertNotNull(response.getBody());

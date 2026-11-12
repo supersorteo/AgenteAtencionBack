@@ -20,10 +20,10 @@ class ChatControllerRechazoTest {
 
     @Test
     void unRechazoDelGuardiaLlegaAlClienteConSuEstadoYMensajeAmable() {
-        when(agenteService.chat("t", "s", "hola"))
+        when(agenteService.chat("t", "s", "hola", "127.0.0.1"))
             .thenThrow(new ChatGuard.Rechazo(HttpStatus.TOO_MANY_REQUESTS, "Límite de hoy alcanzado"));
 
-        var r = controller.chat(new ChatRequest("t", "s", "hola"));
+        var r = controller.chat(new ChatRequest("t", "s", "hola"), new org.springframework.mock.web.MockHttpServletRequest());
 
         assertEquals(HttpStatus.TOO_MANY_REQUESTS, r.getStatusCode());
         assertEquals("Límite de hoy alcanzado", r.getBody().respuesta());

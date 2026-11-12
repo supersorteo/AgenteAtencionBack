@@ -24,10 +24,13 @@ public class AuthController {
     private final JwtUtil jwtUtil;
     private final PasswordEncoder encoder;
     private final AuthCacheService authCache;
+    private final com.agente.atencion.security.LoginAttemptService intentos;
 
     public AuthController(UsuarioRepository repo, TenantRepository tenantRepo,
-                          JwtUtil jwtUtil, PasswordEncoder encoder, AuthCacheService authCache) {
+                          JwtUtil jwtUtil, PasswordEncoder encoder, AuthCacheService authCache,
+                          com.agente.atencion.security.LoginAttemptService intentos) {
         this.authCache = authCache;
+        this.intentos = intentos;
         this.repo = repo;
         this.tenantRepo = tenantRepo;
         this.jwtUtil = jwtUtil;
@@ -42,31 +45,44 @@ public class AuthController {
         String nueva  = body.get("nueva");
         if (actual == null || nueva == null || nueva.isBlank())
             return ResponseEntity.badRequest().body(Map.of("error", "Contraseña actual y nueva son obligatorias"));
+        if (nueva.length() < 8 || nueva.length() > 72)
+            return ResponseEntity.badRequest().body(Map.of("error", "La nueva contraseña debe tener entre 8 y 72 caracteres"));
         return repo.findByUsernameAndActivoTrue(u.username())
             .filter(usr -> encoder.matches(actual, usr.getPassword()))
             .map(usr -> {
                 usr.setPassword(encoder.encode(nueva));
+                usr.setPasswordChangedAt(java.time.LocalDateTime.now(java.time.ZoneOffset.UTC)
+                    .truncatedTo(java.time.temporal.ChronoUnit.SECONDS));
                 repo.save(usr);
                 authCache.evict(usr.getUsername());
-                return ResponseEntity.ok(Map.<String, Object>of("ok", true));
+                String token = jwtUtil.generar(usr.getUsername(), usr.getRol(), usr.getTenantId(), usr.getBarberoId());
+                return ResponseEntity.ok(Map.<String, Object>of("ok", true, "token", token));
             })
             .orElse(ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "Contraseña actual incorrecta")));
     }
 
     @PostMapping("/login")
-    public ResponseEntity<?> login(@RequestBody Map<String, String> body) {
+    public ResponseEntity<?> login(@RequestBody Map<String, String> body, jakarta.servlet.http.HttpServletRequest http) {
         String username = body.get("username");
         String password = body.get("password");
         String tenantId = body.get("tenantId");
+        String ip = http.getRemoteAddr();
+
+        if (intentos.bloqueado(ip, username)) {
+            return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                .body(Map.of("error", "Demasiados intentos fallidos. Probá de nuevo en 15 minutos.", "code", "LOGIN_LOCKED"));
+        }
 
         var usuarioOpt = repo.findByUsernameAndActivoTrue(username)
             .filter(u -> encoder.matches(password, u.getPassword()))
             .filter(u -> perteneceAlTenant(u, tenantId));
 
         if (usuarioOpt.isEmpty()) {
+            intentos.fallo(ip, username);
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                 .body(Map.of("error", "Credenciales incorrectas"));
         }
+        intentos.exito(ip, username);
 
         var u = usuarioOpt.get();
 

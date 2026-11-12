@@ -136,7 +136,7 @@ public class RegistroService {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN,
                 "Código de invitación requerido. Contactá al administrador para obtenerlo.");
 
-        CodigoInvitacion c = codigoRepo.findById(codigoStr.trim().toUpperCase())
+        CodigoInvitacion c = codigoRepo.findWithLockByCodigo(codigoStr.trim().toUpperCase())
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.FORBIDDEN,
                 "Código de invitación inválido. Contactá al administrador."));
 

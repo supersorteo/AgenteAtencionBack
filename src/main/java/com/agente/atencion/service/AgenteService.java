@@ -15,28 +15,32 @@ import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.chat.memory.InMemoryChatMemoryRepository;
 import org.springframework.ai.chat.memory.MessageWindowChatMemory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
-
-import java.util.concurrent.ConcurrentHashMap;
 
 @Service
 public class AgenteService {
 
     private static final Logger log = LoggerFactory.getLogger(AgenteService.class);
-    // Tiempo máximo de inactividad de una sesión: 30 minutos
-    private static final long SESSION_TTL_MS = 30 * 60 * 1000L;
+    private static final class Sesion {
+        final MessageWindowChatMemory memory = MessageWindowChatMemory.builder()
+            .chatMemoryRepository(new InMemoryChatMemoryRepository())
+            .maxMessages(40)
+            .build();
+        volatile boolean esperandoReserva;
+    }
 
     @Autowired private ChatClient.Builder chatClientBuilder;
     @Autowired private TenantConfigService tenantConfigService;
     @Autowired private BarberoRepository barberoRepository;
     @Autowired private ServicioRepository servicioRepository;
     @Autowired private NegocioTools negocioTools;
+    @Autowired private ChatGuard chatGuard;
 
-    // Un objeto de memoria por sesión de cliente (tenantId + sessionId)
-    private final ConcurrentHashMap<String, MessageWindowChatMemory> sessionMemory  = new ConcurrentHashMap<>();
-    private final ConcurrentHashMap<String, Long>                    sessionTouched  = new ConcurrentHashMap<>();
-    private final ConcurrentHashMap<String, Boolean>                 awaitingReserva = new ConcurrentHashMap<>();
+    // Sesiones acotadas: 30 min sin uso o más de 20.000 simultáneas las descartan
+    private final com.github.benmanes.caffeine.cache.Cache<String, Sesion> sesiones = com.github.benmanes.caffeine.cache.Caffeine.newBuilder()
+        .maximumSize(20_000)
+        .expireAfterAccess(java.time.Duration.ofMinutes(30))
+        .build();
 
     public String chat(String tenantId, String sessionId, String mensaje) {
         Tenant tenant = tenantConfigService.getTenant(tenantId);
@@ -44,16 +48,11 @@ public class AgenteService {
         if (SuscripcionService.estado(tenant) != SuscripcionService.EstadoAcceso.ACTIVO) throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Barbería desactivada");
 
         String sessionKey = tenantId + "-" + sessionId;
-        sessionTouched.put(sessionKey, System.currentTimeMillis());
 
         log.info("[AgenteService] chat tenantId={} session={} mensajeLen={}", tenantId, sessionKey, mensaje.length());
 
-        MessageWindowChatMemory memory = sessionMemory.computeIfAbsent(sessionKey, k ->
-            MessageWindowChatMemory.builder()
-                .chatMemoryRepository(new InMemoryChatMemoryRepository())
-                .maxMessages(40)
-                .build()
-        );
+        Sesion sesion = sesiones.get(sessionKey, k -> new Sesion());
+        MessageWindowChatMemory memory = sesion.memory;
 
         // Contexto genérico si el tenant todavía no tiene uno configurado
         String contexto = tenant.getContexto();
@@ -80,26 +79,27 @@ public class AgenteService {
             .defaultAdvisors(MessageChatMemoryAdvisor.builder(memory).build())
             .build();
 
-        boolean eraEsperandoConfirmacion = awaitingReserva.getOrDefault(sessionKey, false);
+        boolean eraEsperandoConfirmacion = sesion.esperandoReserva;
         boolean usuarioAfirma = esAfirmativo(mensaje);
 
         if (tieneIntentReserva(mensaje)) {
-            awaitingReserva.put(sessionKey, true);
-            eraEsperandoConfirmacion = awaitingReserva.get(sessionKey);
+            sesion.esperandoReserva = true;
+            eraEsperandoConfirmacion = true;
         }
 
-        TenantContext.set(tenantId);
-        String respuesta;
-        try {
-            respuesta = client.prompt()
-                .user(mensaje)
-                .tools(negocioTools)
-                .advisors(a -> a.param(ChatMemory.CONVERSATION_ID, sessionKey))
-                .call()
-                .content();
-        } finally {
-            TenantContext.clear();
-        }
+        String respuesta = chatGuard.ejecutar(tenantId, () -> {
+            TenantContext.set(tenantId);
+            try {
+                return client.prompt()
+                    .user(mensaje)
+                    .tools(negocioTools)
+                    .advisors(a -> a.param(ChatMemory.CONVERSATION_ID, sessionKey))
+                    .call()
+                    .content();
+            } finally {
+                TenantContext.clear();
+            }
+        });
 
         if (respuesta == null) respuesta = "";
         log.info("[AgenteService] respuesta sesion={} awaiting={} preview='{}'",
@@ -107,11 +107,11 @@ public class AgenteService {
             respuesta.length() > 160 ? respuesta.substring(0, 160) + "..." : respuesta);
 
         if (respuesta.contains("[ABRIR_MODAL_RESERVA]")) {
-            awaitingReserva.remove(sessionKey);
+            sesion.esperandoReserva = false;
         } else if (eraEsperandoConfirmacion && usuarioAfirma) {
             log.info("[AgenteService] Inyectando [ABRIR_MODAL_RESERVA] sesion={}", sessionKey);
             respuesta = respuesta.trim() + " [ABRIR_MODAL_RESERVA]";
-            awaitingReserva.remove(sessionKey);
+            sesion.esperandoReserva = false;
         } else {
             String norm = respuesta.toLowerCase()
                 .replace("á","a").replace("é","e").replace("í","i").replace("ó","o").replace("ú","u");
@@ -123,28 +123,10 @@ public class AgenteService {
                 || norm.contains("continuar con la reserva")
                 || (norm.contains("reserva") && norm.contains("?"))
                 || (norm.contains("turno") && norm.contains("?"));
-            if (agenteInvita) awaitingReserva.put(sessionKey, true);
+            if (agenteInvita) sesion.esperandoReserva = true;
         }
 
         return respuesta;
-    }
-
-    /** Limpia sesiones sin actividad en los últimos 30 minutos — corre cada 15 minutos. */
-    @Scheduled(fixedDelay = 15 * 60 * 1000L)
-    public void limpiarSesionesInactivas() {
-        long ahora = System.currentTimeMillis();
-        int antes = sessionMemory.size();
-        sessionTouched.entrySet().removeIf(e -> {
-            if (ahora - e.getValue() > SESSION_TTL_MS) {
-                sessionMemory.remove(e.getKey());
-                awaitingReserva.remove(e.getKey());
-                return true;
-            }
-            return false;
-        });
-        int despues = sessionMemory.size();
-        if (antes != despues)
-            log.info("[AgenteService] limpieza: eliminadas {} sesiones. Activas: {}", antes - despues, despues);
     }
 
     private boolean tieneIntentReserva(String msg) {

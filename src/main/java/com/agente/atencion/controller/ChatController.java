@@ -27,6 +27,8 @@ public class ChatController {
             return ResponseEntity.ok(new ChatResponse(respuesta));
         } catch (ResponseStatusException e) {
             throw e;
+        } catch (com.agente.atencion.service.ChatGuard.Rechazo e) {
+            return ResponseEntity.status(e.status()).body(new ChatResponse(e.getMessage()));
         } catch (Exception e) {
             log.error("No se pudo completar la solicitud al agente", e);
             return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)

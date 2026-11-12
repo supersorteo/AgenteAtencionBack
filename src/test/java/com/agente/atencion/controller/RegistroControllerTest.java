@@ -81,10 +81,6 @@ class RegistroControllerTest {
 
     @Test
     void registrarRetorna400SiPasswordCorta() throws Exception {
-        when(registroService.registrar(any())).thenThrow(
-            new ResponseStatusException(HttpStatus.BAD_REQUEST, "La contraseña debe tener al menos 8 caracteres.")
-        );
-
         mvc.perform(post("/api/registro")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""

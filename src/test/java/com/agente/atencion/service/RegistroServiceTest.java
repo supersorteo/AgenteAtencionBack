@@ -34,6 +34,7 @@ class RegistroServiceTest {
     @Mock UsuarioRepository usuarioRepo;
     @Mock PasswordEncoder encoder;
     @Mock CodigoInvitacionRepository codigoRepo;
+    @Mock com.agente.atencion.repository.CategoriaServicioRepository categoriaRepo;
     @InjectMocks RegistroService sut;
 
     @BeforeEach

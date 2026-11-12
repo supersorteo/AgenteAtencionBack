@@ -1,16 +1,10 @@
 package com.agente.atencion.controller;
 
 import com.agente.atencion.entity.Turno;
-import com.agente.atencion.entity.Barbero;
-import com.agente.atencion.repository.BarberoRepository;
-import com.agente.atencion.security.UsuarioAutenticado;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.test.util.ReflectionTestUtils;
-import java.time.Clock;
-import java.time.Instant;
-import java.time.ZoneId;
 import com.agente.atencion.repository.TurnoRepository;
-import com.agente.atencion.service.DisponibilidadService;
+import com.agente.atencion.security.UsuarioAutenticado;
+import com.agente.atencion.service.TenantClockService;
+import com.agente.atencion.service.TurnoService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import org.junit.jupiter.api.BeforeEach;
@@ -19,85 +13,91 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 
-import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @ExtendWith(MockitoExtension.class)
 class TurnoControllerTest {
 
+    private static final String TENANT = "barberia-demo";
+    private static final String RESERVA = """
+        {"barberoId":1,"servicio":"Corte de cabello","fecha":"2026-09-23","hora":"10:00","paciente":"Juan García","telefono":"099123456"}
+        """;
+
     MockMvc mvc;
-    ObjectMapper json;
 
     @Mock TurnoRepository turnoRepository;
-    @Mock BarberoRepository barberoRepository;
-    @Mock DisponibilidadService disponibilidadService;
+    @Mock TurnoService turnoService;
+    @Mock TenantClockService tenantClockService;
     @InjectMocks TurnoController controller;
-
-    private static final String TENANT = "barberia-demo";
 
     @BeforeEach
     void setUp() {
-        ReflectionTestUtils.setField(controller, "negocioClock", Clock.fixed(
-            Instant.parse("2026-09-21T12:00:00Z"), ZoneId.of("America/Montevideo")));
-        json = new ObjectMapper().registerModule(new JavaTimeModule());
+        ObjectMapper json = new ObjectMapper().registerModule(new JavaTimeModule());
         mvc = MockMvcBuilders.standaloneSetup(controller)
             .setMessageConverters(new MappingJackson2HttpMessageConverter(json))
             .build();
     }
 
-    @Test
-    void post_slotDisponible_retorna200ConHoraFin() throws Exception {
-        when(barberoRepository.bloquearParaReserva(TENANT, 1L)).thenReturn(Optional.of(new Barbero()));
-        Turno entrada = turnoConBarbero("Juan García", "Corte de cabello", "2026-09-23", "10:00", 1L);
+    private UsernamePasswordAuthenticationToken admin() {
+        return new UsernamePasswordAuthenticationToken(new UsuarioAutenticado("admin", "ADMIN", TENANT, null), null, List.of());
+    }
 
-        Turno guardado = turnoConBarbero("Juan García", "Corte de cabello", "2026-09-23", "10:00", 1L);
+    @Test
+    void post_reservaValida_retorna200ConElTurnoGuardado() throws Exception {
+        Turno guardado = new Turno();
         guardado.setId(42L);
         guardado.setHoraFin("10:30");
+        when(turnoService.crear(eq(TENANT), any())).thenReturn(guardado);
 
-        when(disponibilidadService.obtenerDuracion(TENANT, "Corte de cabello")).thenReturn(30);
-        when(disponibilidadService.calcularHoraFin("10:00", 30)).thenReturn("10:30");
-        when(disponibilidadService.validar(1L, LocalDate.of(2026, 9, 23), "10:00", "10:30")).thenReturn(true);
-        when(turnoRepository.save(any())).thenReturn(guardado);
-
-        mvc.perform(post("/api/v1/turnos/" + TENANT)
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(json.writeValueAsString(entrada)))
+        mvc.perform(post("/api/v1/turnos/" + TENANT).contentType(MediaType.APPLICATION_JSON).content(RESERVA))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.horaFin").value("10:30"))
             .andExpect(jsonPath("$.id").value(42));
     }
 
     @Test
-    void post_slotOcupado_retorna409() throws Exception {
-        when(barberoRepository.bloquearParaReserva(TENANT, 1L)).thenReturn(Optional.of(new Barbero()));
-        Turno entrada = turnoConBarbero("Pedro López", "Corte de cabello", "2026-09-23", "10:00", 1L);
+    void post_slotOcupado_propagaElConflictoDelServicio() throws Exception {
+        when(turnoService.crear(eq(TENANT), any()))
+            .thenThrow(new ResponseStatusException(HttpStatus.CONFLICT, "El horario ya no está disponible"));
 
-        when(disponibilidadService.obtenerDuracion(TENANT, "Corte de cabello")).thenReturn(30);
-        when(disponibilidadService.calcularHoraFin("10:00", 30)).thenReturn("10:30");
-        when(disponibilidadService.validar(1L, LocalDate.of(2026, 9, 23), "10:00", "10:30")).thenReturn(false);
+        mvc.perform(post("/api/v1/turnos/" + TENANT).contentType(MediaType.APPLICATION_JSON).content(RESERVA))
+            .andExpect(status().isConflict());
+    }
 
-        mvc.perform(post("/api/v1/turnos/" + TENANT)
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(json.writeValueAsString(entrada)))
-            .andExpect(status().isConflict())
-            .andExpect(jsonPath("$.error").exists());
+    @Test
+    void post_conHoraConFormatoInvalido_retorna400SinLlamarAlServicio() throws Exception {
+        mvc.perform(post("/api/v1/turnos/" + TENANT).contentType(MediaType.APPLICATION_JSON)
+                .content(RESERVA.replace("10:00", "25:99")))
+            .andExpect(status().isBadRequest());
+
+        verify(turnoService, never()).crear(any(), any());
     }
 
     @Test
     void get_conFecha_retornaListaFiltrada() throws Exception {
-        when(turnoRepository.findByTenantIdAndFecha(TENANT, LocalDate.of(2026, 9, 23)))
-            .thenReturn(List.of());
+        when(turnoRepository.findByTenantIdAndFecha(TENANT, LocalDate.of(2026, 9, 23))).thenReturn(List.of());
 
         mvc.perform(get("/api/v1/turnos/" + TENANT).param("fecha", "2026-09-23").principal(admin()))
             .andExpect(status().isOk())
@@ -105,40 +105,30 @@ class TurnoControllerTest {
     }
 
     @Test
-    void put_estado_actualizaCorrectamente() throws Exception {
-        Turno existing = turnoConBarbero("Ana", "Corte de cabello", "2026-09-23", "10:00", 1L);
-        existing.setId(1L);
-        existing.setEstado("RESERVADO");
-        existing.setTenantId(TENANT);
+    void get_deOtroNegocio_retorna403() throws Exception {
+        mvc.perform(get("/api/v1/turnos/otro-negocio").principal(admin()))
+            .andExpect(status().isForbidden());
+    }
 
-        Turno updated = turnoConBarbero("Ana", "Corte de cabello", "2026-09-23", "10:00", 1L);
-        updated.setId(1L);
-        updated.setEstado("COMPLETADO");
+    @Test
+    void put_estado_delegaEnElServicioYDevuelveElTurno() throws Exception {
+        Turno actualizado = new Turno();
+        actualizado.setId(1L);
+        actualizado.setEstado("COMPLETADO");
+        when(turnoService.actualizarEstado(eq(TENANT), eq(1L), eq("COMPLETADO"), any())).thenReturn(Optional.of(actualizado));
 
-        when(turnoRepository.findById(1L)).thenReturn(Optional.of(existing));
-        when(turnoRepository.save(any())).thenReturn(updated);
-
-        mvc.perform(put("/api/v1/turnos/" + TENANT + "/1/estado")
-                .principal(admin())
-                .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"estado\":\"COMPLETADO\"}"))
+        mvc.perform(put("/api/v1/turnos/" + TENANT + "/1/estado").principal(admin())
+                .contentType(MediaType.APPLICATION_JSON).content("{\"estado\":\"COMPLETADO\"}"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.estado").value("COMPLETADO"));
     }
 
-    // ── helper ───────────────────────────────────────────
+    @Test
+    void put_estado_deUnTurnoInexistente_retorna404() throws Exception {
+        when(turnoService.actualizarEstado(any(), any(), any(), any())).thenReturn(Optional.empty());
 
-    private UsernamePasswordAuthenticationToken admin() {
-        return new UsernamePasswordAuthenticationToken(new UsuarioAutenticado("admin", "ADMIN", TENANT, null), null, List.of());
-    }
-
-    private Turno turnoConBarbero(String paciente, String servicio, String fecha, String hora, Long barberoId) {
-        Turno t = new Turno();
-        t.setPaciente(paciente);
-        t.setServicio(servicio);
-        t.setFecha(LocalDate.parse(fecha));
-        t.setHora(hora);
-        t.setBarberoId(barberoId);
-        return t;
+        mvc.perform(put("/api/v1/turnos/" + TENANT + "/9/estado").principal(admin())
+                .contentType(MediaType.APPLICATION_JSON).content("{\"estado\":\"COMPLETADO\"}"))
+            .andExpect(status().isNotFound());
     }
 }

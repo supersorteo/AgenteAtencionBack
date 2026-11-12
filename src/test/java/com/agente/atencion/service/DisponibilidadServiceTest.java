@@ -33,6 +33,7 @@ class DisponibilidadServiceTest {
     @Mock private TurnoRepository turnoRepository;
     @Mock private ServicioRepository servicioRepository;
 
+    @Mock private com.agente.atencion.service.TenantClockService tenantClockService;
     @InjectMocks private DisponibilidadService sut;
 
     private static final String TENANT = "barberia-demo";
@@ -44,8 +45,8 @@ class DisponibilidadServiceTest {
 
     @BeforeEach
     void setUp() {
-        ReflectionTestUtils.setField(sut, "negocioClock", Clock.fixed(
-            Instant.parse("2026-09-21T12:00:00Z"), ZoneId.of("America/Montevideo")));
+        java.time.Clock reloj = Clock.fixed(Instant.parse("2026-09-21T12:00:00Z"), ZoneId.of("America/Montevideo"));
+        org.mockito.Mockito.lenient().when(tenantClockService.clockFor(org.mockito.ArgumentMatchers.any())).thenReturn(reloj);
         barberoJuan = new Barbero();
         barberoJuan.setId(1L);
         barberoJuan.setTenantId(TENANT);
@@ -71,8 +72,8 @@ class DisponibilidadServiceTest {
     void calcular_sinTurnosExistentes_retornaSlotsCadaMedia() {
         when(servicioRepository.findByTenantIdAndActivoTrue(TENANT)).thenReturn(List.of(servicioCorte));
         when(barberoRepository.findByTenantIdAndActivoTrue(TENANT)).thenReturn(List.of(barberoJuan));
-        when(horarioRepository.findByBarberoIdAndDiaSemana(1L, 2)).thenReturn(Optional.of(horarioMartes));
-        when(turnoRepository.findByBarberoIdAndFecha(1L, MARTES)).thenReturn(List.of());
+        when(horarioRepository.findByBarberoIdInAndDiaSemana(List.of(1L), 2)).thenReturn(List.of(horarioMartes));
+        when(turnoRepository.findByBarberoIdInAndFecha(List.of(1L), MARTES)).thenReturn(List.of());
 
         var slots = sut.calcular(TENANT, MARTES, "Corte de cabello", null);
 
@@ -89,7 +90,7 @@ class DisponibilidadServiceTest {
     void calcular_barberonNoTrabajaeseaDia_retornaVacio() {
         when(servicioRepository.findByTenantIdAndActivoTrue(TENANT)).thenReturn(List.of(servicioCorte));
         when(barberoRepository.findByTenantIdAndActivoTrue(TENANT)).thenReturn(List.of(barberoJuan));
-        when(horarioRepository.findByBarberoIdAndDiaSemana(1L, 2)).thenReturn(Optional.empty());
+        when(horarioRepository.findByBarberoIdInAndDiaSemana(List.of(1L), 2)).thenReturn(List.of());
 
         var slots = sut.calcular(TENANT, MARTES, "Corte de cabello", null);
 
@@ -101,8 +102,8 @@ class DisponibilidadServiceTest {
         Turno turno = turnoEn("10:00", "10:30");
         when(servicioRepository.findByTenantIdAndActivoTrue(TENANT)).thenReturn(List.of(servicioCorte));
         when(barberoRepository.findByTenantIdAndActivoTrue(TENANT)).thenReturn(List.of(barberoJuan));
-        when(horarioRepository.findByBarberoIdAndDiaSemana(1L, 2)).thenReturn(Optional.of(horarioMartes));
-        when(turnoRepository.findByBarberoIdAndFecha(1L, MARTES)).thenReturn(List.of(turno));
+        when(horarioRepository.findByBarberoIdInAndDiaSemana(List.of(1L), 2)).thenReturn(List.of(horarioMartes));
+        when(turnoRepository.findByBarberoIdInAndFecha(List.of(1L), MARTES)).thenReturn(List.of(turno));
 
         var slots = sut.calcular(TENANT, MARTES, "Corte de cabello", null);
 
@@ -130,8 +131,8 @@ class DisponibilidadServiceTest {
 
         when(servicioRepository.findByTenantIdAndActivoTrue(TENANT)).thenReturn(List.of(corte60));
         when(barberoRepository.findByTenantIdAndActivoTrue(TENANT)).thenReturn(List.of(barberoJuan));
-        when(horarioRepository.findByBarberoIdAndDiaSemana(1L, 2)).thenReturn(Optional.of(horarioLargo));
-        when(turnoRepository.findByBarberoIdAndFecha(1L, MARTES)).thenReturn(List.of(turnoOcupado));
+        when(horarioRepository.findByBarberoIdInAndDiaSemana(List.of(1L), 2)).thenReturn(List.of(horarioLargo));
+        when(turnoRepository.findByBarberoIdInAndFecha(List.of(1L), MARTES)).thenReturn(List.of(turnoOcupado));
 
         var slots = sut.calcular(TENANT, MARTES, "Tratamiento capilar", null);
 
@@ -154,8 +155,8 @@ class DisponibilidadServiceTest {
     void calcular_filtroPorBarberoId_soloRetornaEseBarbero() {
         when(servicioRepository.findByTenantIdAndActivoTrue(TENANT)).thenReturn(List.of(servicioCorte));
         when(barberoRepository.findById(1L)).thenReturn(Optional.of(barberoJuan));
-        when(horarioRepository.findByBarberoIdAndDiaSemana(1L, 2)).thenReturn(Optional.of(horarioMartes));
-        when(turnoRepository.findByBarberoIdAndFecha(1L, MARTES)).thenReturn(List.of());
+        when(horarioRepository.findByBarberoIdInAndDiaSemana(List.of(1L), 2)).thenReturn(List.of(horarioMartes));
+        when(turnoRepository.findByBarberoIdInAndFecha(List.of(1L), MARTES)).thenReturn(List.of());
 
         var slots = sut.calcular(TENANT, MARTES, "Corte de cabello", 1L);
 
@@ -168,8 +169,8 @@ class DisponibilidadServiceTest {
     void calcular_servicioDesconocido_usaDuracion30PorDefecto() {
         when(servicioRepository.findByTenantIdAndActivoTrue(TENANT)).thenReturn(List.of());
         when(barberoRepository.findByTenantIdAndActivoTrue(TENANT)).thenReturn(List.of(barberoJuan));
-        when(horarioRepository.findByBarberoIdAndDiaSemana(1L, 2)).thenReturn(Optional.of(horarioMartes));
-        when(turnoRepository.findByBarberoIdAndFecha(1L, MARTES)).thenReturn(List.of());
+        when(horarioRepository.findByBarberoIdInAndDiaSemana(List.of(1L), 2)).thenReturn(List.of(horarioMartes));
+        when(turnoRepository.findByBarberoIdInAndFecha(List.of(1L), MARTES)).thenReturn(List.of());
 
         var slots = sut.calcular(TENANT, MARTES, "Servicio inexistente", null);
 

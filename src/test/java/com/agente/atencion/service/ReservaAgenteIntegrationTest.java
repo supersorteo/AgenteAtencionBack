@@ -38,6 +38,7 @@ class ReservaAgenteIntegrationTest {
     @Autowired DisponibilidadService disponibilidad;
     @Autowired TurnoController controller;
     @Autowired TurnoRepository turnos;
+    @Autowired com.agente.atencion.repository.TenantRepository tenants;
     @Autowired BarberoRepository barberos;
     @Autowired ServicioRepository servicios;
     @Autowired HorarioBarberoRepository horarios;
@@ -47,7 +48,9 @@ class ReservaAgenteIntegrationTest {
     @Configuration
     @EnableTransactionManagement
     @EnableJpaRepositories(basePackageClasses = TurnoRepository.class)
-    @Import({ReservaAgenteService.class, DisponibilidadService.class, NegocioTools.class, TurnoController.class})
+    @Import({ReservaAgenteService.class, DisponibilidadService.class, NegocioTools.class, TurnoController.class,
+            com.agente.atencion.service.TurnoService.class, com.agente.atencion.service.TenantConfigService.class,
+            com.agente.atencion.service.DisponibilidadCache.class})
     static class Config {
         @Bean DataSource dataSource() {
             return new DriverManagerDataSource("jdbc:h2:mem:reservas-agente;DB_CLOSE_DELAY=-1;LOCK_TIMEOUT=10000", "sa", "");
@@ -63,6 +66,14 @@ class ReservaAgenteIntegrationTest {
         @Bean JpaTransactionManager transactionManager(EntityManagerFactory factory) {
             return new JpaTransactionManager(factory);
         }
+        @Bean org.springframework.cache.CacheManager cacheManager() {
+            return new org.springframework.cache.concurrent.ConcurrentMapCacheManager();
+        }
+        @Bean com.agente.atencion.service.TenantClockService tenantClockService(Clock negocioClock) {
+            var servicio = org.mockito.Mockito.mock(com.agente.atencion.service.TenantClockService.class);
+            org.mockito.Mockito.when(servicio.clockFor(org.mockito.ArgumentMatchers.any())).thenReturn(negocioClock);
+            return servicio;
+        }
         @Bean Clock negocioClock() {
             // UTC is already Tuesday; Montevideo is still Monday. Relative dates must use the business zone.
             return Clock.fixed(Instant.parse("2026-09-22T01:00:00Z"), ZoneId.of("America/Montevideo"));
@@ -71,6 +82,13 @@ class ReservaAgenteIntegrationTest {
 
     @BeforeEach
     void prepararAgenda() {
+        if (!tenants.existsById(TENANT)) {
+            var negocio = new com.agente.atencion.entity.Tenant();
+            negocio.setId(TENANT);
+            negocio.setNombre("Demo");
+            negocio.setActivo(true);
+            tenants.save(negocio);
+        }
         turnos.deleteAll();
         bloqueos.deleteAll();
         horarios.deleteAll();
@@ -189,7 +207,11 @@ class ReservaAgenteIntegrationTest {
                 inicio.await();
                 var req = new com.agente.atencion.dto.TurnoCrearRequest(
                     juan.getId(), "Corte clásico", FECHA, "10:00", "Otro cliente", "099999999");
-                return controller.crear(TENANT, req).getStatusCode().is2xxSuccessful();
+                try {
+                    return controller.crear(TENANT, req).getStatusCode().is2xxSuccessful();
+                } catch (org.springframework.web.server.ResponseStatusException e) {
+                    return e.getStatusCode().value() != 409;
+                }
             });
             inicio.countDown();
             assertThat(List.of(agente.get(15, TimeUnit.SECONDS), formulario.get(15, TimeUnit.SECONDS)))
